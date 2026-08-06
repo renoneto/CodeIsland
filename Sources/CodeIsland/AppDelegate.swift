@@ -9,8 +9,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     var panelController: PanelWindowController?
     private var hookServer: HookServer?
-    private var hookRecoveryTimer: Timer?
-    private var lastHookCheck: Date = .distantPast
     private let hotKeyManager = GlobalHotKeyManager()
     private var localShortcutMonitor: Any?
     let appState = AppState()
@@ -28,17 +26,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // hooks get no response and Claude Code denies them.
         hookServer = HookServer(appState: appState)
         hookServer?.start()
-        RemoteManager.shared.onDisconnect = { [weak appState] hostId in
-            appState?.removeRemoteSessions(hostId: hostId)
-        }
-
-        // Prewarm the usage footer off the launch path — first panel expansion
-        // then shows data immediately instead of popping in a beat later.
-        Task { @MainActor [weak appState] in
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            appState?.refreshClaudeUsageIfStale()
-        }
-
         // Hook installation does subprocess version detection plus disk I/O —
         // keep it off the main thread so app launch isn't blocked even when a
         // CLI binary hangs. See #139.
@@ -50,75 +37,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Watch system sleep/wake so the mascot animations pause and re-anchor
-        // their periodic schedules instead of pinning a core after wake (#225).
-        MascotAnimationGate.shared.start()
-
         panelController = PanelWindowController(appState: appState)
         panelController?.showPanel()
 
         appState.startSessionDiscovery()
         appState.startCodexAppServerWatcher()
-        RemoteManager.shared.startup()
-
-        // Buddy bridge (opt-in): mirrors the Dynamic Island onto the companion
-        // device and routes its button press back to TerminalActivator.
-        ESP32StatePublisher.shared.attach(appState)
-        ESP32BridgeManager.shared.onFocusRequest = { [weak appState] mascot in
-            guard let appState else { return }
-            ESP32FocusCoordinator.handle(mascot: mascot, appState: appState)
-        }
-        ESP32BridgeManager.shared.onControlCommand = { [weak appState] command in
-            guard let appState else { return }
-            appState.handleBuddyControlCommand(command)
-        }
-        AppleCompanionPublisher.shared.attach(appState)
-        AppleCompanionPublisher.shared.onFocusRequest = { [weak appState] mascot in
-            guard let appState else { return }
-            ESP32FocusCoordinator.handle(mascot: mascot, appState: appState)
-        }
-        AppleCompanionPublisher.shared.onControlCommand = { [weak appState] command in
-            guard let appState else { return }
-            appState.handleBuddyControlCommand(command)
-        }
-        AppleCompanionPublisher.shared.onQuestionAnswer = { [weak appState] answer in
-            guard let appState else { return }
-            appState.answerCompanionQuestion(answer)
-        }
-        let buddyEnabled = UserDefaults.standard.bool(forKey: SettingsKey.esp32BridgeEnabled)
-        let buddySyncInterval = UserDefaults.standard.double(forKey: SettingsKey.esp32HeartbeatSeconds)
-        let buddyBrightness = UserDefaults.standard.double(forKey: SettingsKey.buddyScreenBrightnessPercent)
-        let buddyScreenOrientation = BuddyScreenOrientation(
-            settingsValue: UserDefaults.standard.string(forKey: SettingsKey.buddyScreenOrientation)
-        )
-        ESP32StatePublisher.shared.configure(
-            enabled: buddyEnabled,
-            heartbeatSeconds: buddySyncInterval > 0 ? buddySyncInterval : SettingsDefaults.esp32HeartbeatSeconds,
-            brightnessPercent: buddyBrightness > 0 ? buddyBrightness : SettingsDefaults.buddyScreenBrightnessPercent,
-            screenOrientation: buddyScreenOrientation
-        )
-        let appleCompanionEnabled = UserDefaults.standard.bool(forKey: SettingsKey.appleCompanionEnabled)
-        let appleCompanionHeartbeat = UserDefaults.standard.double(forKey: SettingsKey.appleCompanionHeartbeatSeconds)
-        AppleCompanionPublisher.shared.configure(
-            enabled: appleCompanionEnabled,
-            heartbeatSeconds: appleCompanionHeartbeat > 0 ? appleCompanionHeartbeat : SettingsDefaults.appleCompanionHeartbeatSeconds
-        )
-
-        // Hooks auto-recovery: periodic + app activation trigger
-        hookRecoveryTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.checkAndRepairHooks()
-            }
-        }
-        NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.checkAndRepairHooks()
-            }
-        }
-
         #if DEBUG
         // Preview mode: inject mock data if --preview flag is present
         if let scenario = DebugHarness.requestedScenario() {
@@ -136,12 +59,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         #endif
 
-        // Sparkle runs scheduled checks itself on the cadence declared in
-        // Info.plist (SUScheduledCheckInterval). Start the updater once — it
-        // no-ops for Homebrew-installed builds (brew owns those upgrades).
-        UpdateChecker.shared.start()
-
-        SoundManager.shared.playBoot()
         setupGlobalShortcut()
 
         // Boot animation: brief expand to confirm app is running
@@ -161,10 +78,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        hookRecoveryTimer?.invalidate()
         teardownGlobalShortcut()
         appState.saveSessions()
-        RemoteManager.shared.shutdown()
         hookServer?.stop()
         appState.stopCodexAppServerWatcher()
         appState.stopSessionDiscovery()
@@ -246,18 +161,5 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func checkAndRepairHooks() {
-        guard Date().timeIntervalSince(lastHookCheck) > 60 else { return }
-        lastHookCheck = Date()
-        // verifyAndRepair walks every enabled CLI and rewrites settings on
-        // disk — keep it off the main thread so the activation observer (fires
-        // on every app switch) can't stutter the UI. See #139.
-        Task.detached(priority: .background) {
-            let repaired = ConfigInstaller.verifyAndRepair()
-            if !repaired.isEmpty {
-                Self.log.info("Auto-repaired hooks for: \(repaired.joined(separator: ", "))")
-            }
-        }
-    }
 
 }

@@ -567,9 +567,15 @@ struct ConfigInstaller {
         builtInCLIs + customCLIs()
     }
 
+    /// This fork owns only the Codex hook integration. Keeping the upstream
+    /// catalog separate avoids rewriting or repairing other tools' configs.
+    static var managedCLIs: [CLIConfig] {
+        builtInCLIs.filter { $0.source == "codex" }
+    }
+
     /// Non-Claude CLIs (installed via bridge binary directly)
     private static var externalCLIs: [CLIConfig] {
-        allCLIs.filter { $0.source != "claude" }
+        managedCLIs
     }
 
     static func defaultEvents(for format: HookFormat) -> [(String, Int, Bool)] {
@@ -866,47 +872,15 @@ struct ConfigInstaller {
 
         // Install hooks for each enabled CLI
         var ok = true
-        for cli in allCLIs {
+        for cli in managedCLIs {
             guard isEnabled(source: cli.source) else { continue }
-            if cli.source == "claude" {
-                if !installClaudeHooks(cli: cli, fm: fm) { ok = false }
-            } else if cli.source == "traecli" {
-                if !installTraecliHooks(fm: fm) { ok = false }
-            } else if cli.format == .hermes {
-                if !installHermesHooks(fm: fm) { ok = false }
-            } else if cli.format == .zcode {
-                if !installZcodeHooks(fm: fm) { ok = false }
-            } else if cli.source == "pi" || cli.source == "omp" || cli.source == "openclaw" {
-                continue
-            } else {
-                if !installExternalHooks(cli: cli, fm: fm) { ok = false }
-            }
+            if !installExternalHooks(cli: cli, fm: fm) { ok = false }
         }
 
         // Codex requires hooks = true in config.toml
         if isEnabled(source: "codex"),
            fm.fileExists(atPath: codexHome()) {
             enableCodexHooksConfig(fm: fm)
-        }
-
-        // Install OpenCode plugin
-        if isEnabled(source: "opencode") {
-            if !installOpencodePlugin(fm: fm) { ok = false }
-        }
-
-        // Install pi extension
-        if isEnabled(source: "pi") {
-            if !installPiExtension(fm: fm) { ok = false }
-        }
-
-        // Install Oh My Pi / OMP extension
-        if isEnabled(source: "omp") {
-            if !installOmpExtension(fm: fm) { ok = false }
-        }
-
-        // Install OpenClaw plugin
-        if isEnabled(source: "openclaw") {
-            if !installOpenclawPlugin(fm: fm) { ok = false }
         }
 
         return ok
@@ -945,51 +919,21 @@ struct ConfigInstaller {
     static func isInstalled() -> Bool {
         let fm = FileManager.default
         guard fm.fileExists(atPath: hookScriptPath) else { return false }
-        return isHooksInstalled(for: allCLIs[0], fm: fm)
+        guard let codex = managedCLIs.first else { return false }
+        return isHooksInstalled(for: codex, fm: fm)
     }
 
     /// Check if a specific CLI's hooks are installed
     static func isInstalled(source: String) -> Bool {
-        if source == "opencode" { return isOpencodePluginInstalled(fm: FileManager.default) }
-        if source == "pi" { return isPiExtensionInstalled(fm: FileManager.default) }
-        if source == "omp" { return isOmpExtensionInstalled(fm: FileManager.default) }
-        if source == "openclaw" { return isOpenclawPluginInstalled(fm: FileManager.default) }
-        if source == "traecli" { return isTraecliHooksInstalled(fm: FileManager.default) }
-        if source == "hermes" { return isHermesHooksInstalled(fm: FileManager.default) }
-        if source == "zcode" { return isZcodeHooksInstalled(fm: FileManager.default) }
-        if source == "cline" {
-            guard let cli = allCLIs.first(where: { $0.source == "cline" }) else { return false }
-            return isClineHooksInstalled(cli: cli, fm: FileManager.default)
-        }
-        guard let cli = allCLIs.first(where: { $0.source == source }) else { return false }
+        guard source == "codex",
+              let cli = managedCLIs.first else { return false }
         return isHooksInstalled(for: cli, fm: FileManager.default)
     }
 
     /// Check if CLI directory exists (tool is installed on this machine)
     static func cliExists(source: String) -> Bool {
-        if source == "opencode" { return FileManager.default.fileExists(atPath: NSHomeDirectory() + "/.config/opencode") }
-        if source == "pi" { return FileManager.default.fileExists(atPath: piAgentDir) }
-        if source == "omp" { return FileManager.default.fileExists(atPath: ompAgentDir) }
-        if source == "openclaw" { return FileManager.default.fileExists(atPath: openclawDir) }
-        if source == "copilot" { return FileManager.default.fileExists(atPath: NSHomeDirectory() + "/.copilot") }
-        if source == "cline" {
-            let fm = FileManager.default
-            return fm.fileExists(atPath: NSHomeDirectory() + "/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev")
-                || fm.fileExists(atPath: NSHomeDirectory() + "/Documents/Cline")
-        }
-        if source == "google-antigravity" {
-            // Detect via Antigravity-specific markers, NOT bare ~/.gemini (which the
-            // plain Gemini CLI also creates). See installExternalHooks gating (#215).
-            let fm = FileManager.default
-            return fm.fileExists(atPath: NSHomeDirectory() + "/.gemini/config")
-                || fm.fileExists(atPath: NSHomeDirectory() + "/.gemini/antigravity-cli")
-        }
-        // ZCode's config lives one level below the app's real root (~/.zcode/cli/),
-        // so detect against the root itself rather than cli.dirPath (#245).
-        if source == "zcode" { return FileManager.default.fileExists(atPath: NSHomeDirectory() + "/.zcode") }
-        // Kimi Code CLI moved from ~/.kimi (kimi-cli) to ~/.kimi-code.
-        if source == "kimi" { return kimiPresenceDetected() }
-        guard let cli = allCLIs.first(where: { $0.source == source }) else { return false }
+        guard source == "codex",
+              let cli = managedCLIs.first else { return false }
         return FileManager.default.fileExists(atPath: cli.dirPath)
     }
 
@@ -998,6 +942,7 @@ struct ConfigInstaller {
 
     /// Whether a CLI is enabled by user (UserDefaults). Default: true.
     static func isEnabled(source: String) -> Bool {
+        guard source == "codex" else { return false }
         let key = "cli_enabled_\(source)"
         if UserDefaults.standard.object(forKey: key) == nil { return true }
         return UserDefaults.standard.bool(forKey: key)
@@ -1006,52 +951,18 @@ struct ConfigInstaller {
     /// Toggle a single CLI on/off: installs or uninstalls its hooks.
     @discardableResult
     static func setEnabled(source: String, enabled: Bool) -> Bool {
+        guard source == "codex" else { return false }
         UserDefaults.standard.set(enabled, forKey: "cli_enabled_\(source)")
         let fm = FileManager.default
         if enabled {
             installHookScript(fm: fm)
             installBridgeBinary(fm: fm)
-            if source == "opencode" {
-                return installOpencodePlugin(fm: fm)
-            }
-            if source == "pi" {
-                return installPiExtension(fm: fm)
-            }
-            if source == "omp" {
-                return installOmpExtension(fm: fm)
-            }
-            guard let cli = allCLIs.first(where: { $0.source == source }) else { return false }
-            if cli.source == "claude" {
-                return installClaudeHooks(cli: cli, fm: fm)
-            } else if cli.source == "traecli" {
-                return installTraecliHooks(fm: fm)
-            } else if cli.format == .hermes {
-                return installHermesHooks(fm: fm)
-            } else if cli.format == .zcode {
-                return installZcodeHooks(fm: fm)
-            } else {
-                installExternalHooks(cli: cli, fm: fm)
-                if cli.source == "codex" { enableCodexHooksConfig(fm: fm) }
-                return isHooksInstalled(for: cli, fm: fm)
-            }
+            guard let cli = managedCLIs.first else { return false }
+            installExternalHooks(cli: cli, fm: fm)
+            enableCodexHooksConfig(fm: fm)
+            return isHooksInstalled(for: cli, fm: fm)
         } else {
-            if source == "opencode" {
-                uninstallOpencodePlugin(fm: fm)
-            } else if source == "pi" {
-                uninstallPiExtension(fm: fm)
-            } else if source == "omp" {
-                uninstallOmpExtension(fm: fm)
-            } else if let cli = allCLIs.first(where: { $0.source == source }) {
-                if cli.source == "traecli" {
-                    uninstallTraecliHooks(fm: fm)
-                } else if cli.format == .hermes {
-                    uninstallHermesHooks(fm: fm)
-                } else if cli.format == .zcode {
-                    uninstallZcodeHooks(fm: fm)
-                } else {
-                    uninstallHooks(cli: cli, fm: fm)
-                }
-            }
+            if let cli = managedCLIs.first { uninstallHooks(cli: cli, fm: fm) }
             return true
         }
     }
@@ -1064,7 +975,7 @@ struct ConfigInstaller {
         installHookScript(fm: fm)
 
         var repaired: [String] = []
-        for cli in allCLIs {
+        for cli in managedCLIs {
             guard isEnabled(source: cli.source) else { continue }
             let dirExists: Bool
             if cli.format == .copilot {

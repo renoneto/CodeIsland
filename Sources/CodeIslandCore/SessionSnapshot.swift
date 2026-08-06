@@ -9,47 +9,9 @@ public enum SessionTitleSource: String, Sendable, Codable {
 public struct SessionSnapshot: Sendable {
     public static let customCLIConfigsKey = "custom_cli_configs_v1"
 
-    public static let supportedSources: Set<String> = [
-        "claude",
-        "codex",
-        "gemini",
-        "cursor",
-        "cursor-cli",
-        "trae",
-        "traecn",
-        "traecli",
-        "copilot",
-        "qoder",
-        "qoder-cli",
-        "qoderwork",
-        "droid",
-        "codebuddy",
-        "codybuddycn",
-        "stepfun",
-        "opencode",
-        "antigravity",
-        "google-antigravity",
-        "workbuddy",
-        "hermes",
-        "openclaw",
-        "qwen",
-        "kimi",
-        "pi",
-        "kiro",
-        "cline",
-        "zcode",
-    ]
+    public static let supportedSources: Set<String> = ["codex"]
 
-    public static let ideCompletionSources: Set<String> = [
-        "cursor",
-        "cursor-cli",
-        "qoder",
-        "qoder-cli",
-        "trae",
-        "traecn",
-        "codebuddy",
-        "codybuddycn",
-    ]
+    public static let ideCompletionSources: Set<String> = []
 
     /// Desktop-IDE *host* sources. Their GUI host/helper processes (e.g.
     /// "Cursor Helper", "Trae Helper", the IDE's own `.../MacOS/<App>` binary)
@@ -62,17 +24,7 @@ public struct SessionSnapshot: Sendable {
     /// them keeps e.g. Claude Code run inside Cursor's terminal — whose `claude`
     /// process is a source-less Node binary — from being mis-attributed to
     /// "cursor". (#220)
-    public static let ideHostSources: Set<String> = [
-        "cursor",
-        "trae",
-        "traecn",
-        "qoder",
-        "codebuddy",
-        "codybuddycn",
-        "stepfun",
-        "antigravity",
-        "google-antigravity",
-    ]
+    public static let ideHostSources: Set<String> = []
 
     public var status: AgentStatus = .idle
     public var currentTool: String?
@@ -120,7 +72,7 @@ public struct SessionSnapshot: Sendable {
     public var supersetPaneId: String?  // Superset pane/terminal id (from SUPERSET_PANE_ID / SUPERSET_TERMINAL_ID env var)
     public var cliPid: pid_t?            // CLI process PID (from bridge _ppid)
     public var cliStartTime: Date?       // Start time of the tracked CLI PID (guards PID reuse)
-    public var source: String = "claude" // "claude" or "codex"
+    public var source: String = "codex"
     public var interrupted: Bool = false
     /// Cline-specific: true after TaskComplete/TaskCancel until the next TaskStart/TaskResume.
     /// Cline runs hooks asynchronously (background bridge), so events from prior tools can
@@ -143,95 +95,7 @@ public struct SessionSnapshot: Sendable {
     }
 
     public static func normalizedSupportedSource(_ source: String?) -> String? {
-        guard let source else { return nil }
-        let normalized = source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalized.isEmpty else { return nil }
-
-        let aliases: [String: String] = [
-            "factory": "droid",
-            "ag": "antigravity",
-            "anti-gravity": "antigravity",
-            "anti gravity": "antigravity",
-            // Google Antigravity (Gemini-based IDE/CLI). A SEPARATE product from
-            // the "antigravity" Claude-Code fork above — it reads
-            // ~/.gemini/config/hooks.json, not .antigravity/settings.json. Keep
-            // the "ag"/"anti-gravity" aliases pointed at the fork; only these
-            // explicit google-prefixed / -ide variants resolve here (#215).
-            "googleantigravity": "google-antigravity",
-            "google antigravity": "google-antigravity",
-            "google-anti-gravity": "google-antigravity",
-            "antigravity-ide": "google-antigravity",
-            "antigravity-cli": "google-antigravity",
-            "agy": "google-antigravity",
-            "work-buddy": "workbuddy",
-            "work body": "workbuddy",
-            "work-body": "workbuddy",
-            "workbody": "workbuddy",
-            "hermes-agent": "hermes",
-            "hermes-agents": "hermes",
-            "hermes agent": "hermes",
-            "hermes agents": "hermes",
-            // OpenClaw (openclaw.ai) — personal-assistant Gateway daemon,
-            // formerly branded Clawdbot. Keep the old name as an alias so
-            // events from a not-yet-renamed install land on the same source.
-            "open-claw": "openclaw",
-            "open claw": "openclaw",
-            "clawdbot": "openclaw",
-            "qwen-code": "qwen",
-            "qwencode": "qwen",
-            "cursor-agent": "cursor-cli",
-            "cursoragent": "cursor-cli",
-            "cursorcli": "cursor-cli",
-            "qodercli": "qoder-cli",
-            // QoderWork — Qoder's standalone desktop assistant app (not the
-            // IDE); own hooks file at ~/.qoderwork/settings.json (#249).
-            "qoder-work": "qoderwork",
-            "qoder work": "qoderwork",
-            "kimi-cli": "kimi",
-            "kimicli": "kimi",
-            "kimi-code": "kimi",
-            "kimicode": "kimi",
-            "kimi_code": "kimi",
-            "kimi-code-cli": "kimi",
-            "kimicodecli": "kimi",
-            "kimi_code_cli": "kimi",
-            "kiro-cli": "kiro",
-            "kirocli": "kiro",
-            "codebuddycn": "codybuddycn",
-            "codybuddy-cn": "codybuddycn",
-            "step-fun": "stepfun",
-            "step fun": "stepfun",
-            "trae-cn": "traecn",
-            "trae_cn": "traecn",
-            "trae cn": "traecn",
-            "traecli": "traecli",
-            "omp": "pi",
-            "oh-my-pi": "pi",
-            "oh my pi": "pi",
-            "z-code": "zcode",
-            "z code": "zcode",
-        ]
-        let canonical = aliases[normalized] ?? normalized
-        let dynamicSupportedSources = supportedSources.union(loadCustomSources())
-
-        if dynamicSupportedSources.contains(canonical) { return canonical }
-        // Match Google Antigravity variants BEFORE the bare "antigravity" prefix
-        // clause below, so a "google-antigravity-*" sub-brand never falls through
-        // to the Claude-fork source.
-        if canonical.hasPrefix("google-antigravity") || canonical.hasPrefix("googleantigravity") { return "google-antigravity" }
-        if canonical.hasPrefix("antigravity") { return "antigravity" }
-        if canonical.hasPrefix("workbuddy") { return "workbuddy" }
-        if canonical.hasPrefix("hermes") { return "hermes" }
-        if canonical.hasPrefix("openclaw") { return "openclaw" }
-        if canonical.hasPrefix("qwen") { return "qwen" }
-        if canonical.hasPrefix("kiro") { return "kiro" }
-        if canonical.hasPrefix("kimi") { return "kimi" }
-        if canonical.hasPrefix("codybuddycn") || canonical.hasPrefix("codebuddycn") { return "codybuddycn" }
-        if canonical.hasPrefix("stepfun") { return "stepfun" }
-        if canonical.hasPrefix("traecn") { return "traecn" }
-        if canonical.hasPrefix("traecli") { return "traecli" }
-        if canonical.hasPrefix("trae") { return "trae" }
-        return nil
+        source?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "codex" ? "codex" : nil
     }
 
     private static func loadCustomSources() -> Set<String> {
@@ -511,40 +375,7 @@ public struct SessionSnapshot: Sendable {
 
     /// Source label for display
     public var sourceLabel: String {
-        switch source {
-        case "claude": return "Claude"
-        case "codex": return "Codex"
-        case "gemini": return "Gemini"
-        case "cursor": return "Cursor"
-        case "cursor-cli": return "Cursor CLI"
-        case "trae": return "Trae"
-        case "traecn": return "Trae CN"
-        case "traecli": return "Traecli"
-        case "qoder": return "Qoder"
-        case "qoder-cli": return "Qoder CLI"
-        case "qoderwork": return "QoderWork"
-        case "droid": return "Factory"
-        case "codebuddy": return "CodeBuddy"
-        case "codybuddycn": return "CodyBuddyCN"
-        case "stepfun": return "StepFun"
-        case "opencode": return "OpenCode"
-        case "antigravity": return "AntiGravity"
-        case "google-antigravity": return "Google Antigravity"
-        case "workbuddy": return "WorkBuddy"
-        case "hermes": return "Hermes"
-        case "openclaw": return "OpenClaw"
-        case "qwen": return "Qwen Code"
-        case "kimi": return "Kimi Code CLI"
-        case "pi": return "Pi"
-        case "kiro": return "Kiro"
-        case "cline": return "Cline"
-        case "zcode": return "ZCode"
-        default:
-            if let customName = Self.loadCustomSourceNames()[source] {
-                return customName
-            }
-            return source.capitalized
-        }
+        "Codex"
     }
 
     public var isCodex: Bool { source == "codex" }

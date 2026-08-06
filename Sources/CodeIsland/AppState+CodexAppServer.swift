@@ -256,7 +256,6 @@ extension AppState {
             withAnimation(NotchAnimation.open) {
                 surface = .questionCard(sessionId: sessionId)
             }
-            SoundManager.shared.handleEvent("PermissionRequest")
         }
         refreshDerivedState()
     }

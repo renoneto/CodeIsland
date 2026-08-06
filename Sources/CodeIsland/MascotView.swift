@@ -1,76 +1,46 @@
 import SwiftUI
+import CodeIslandCore
 
-// MARK: - Mascot Animation Speed Environment
+/// A static glyph keeps the notch informative without an animation scheduler.
+struct CodexStatusIcon: View {
+    let status: AgentStatus
+    var size: CGFloat = 27
 
-private struct MascotSpeedKey: EnvironmentKey {
-    static let defaultValue: Double = 1.0
-}
+    static func symbol(for status: AgentStatus) -> String {
+        switch status {
+        case .waitingApproval, .waitingQuestion:
+            return "exclamationmark.triangle.fill"
+        case .running, .processing:
+            return "terminal.fill"
+        case .idle:
+            return "terminal"
+        }
+    }
 
-extension EnvironmentValues {
-    var mascotSpeed: Double {
-        get { self[MascotSpeedKey.self] }
-        set { self[MascotSpeedKey.self] = newValue }
+    private var color: Color {
+        switch status {
+        case .waitingApproval, .waitingQuestion: return .orange
+        case .running, .processing: return .green
+        case .idle: return .secondary
+        }
+    }
+
+    var body: some View {
+        Image(systemName: Self.symbol(for: status))
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(color)
+            .font(.system(size: size * 0.62, weight: .medium))
+            .frame(width: size, height: size)
     }
 }
 
-/// Routes a CLI source identifier to the correct pixel mascot view.
+/// Compatibility wrapper for existing notch call sites.
 struct MascotView: View {
     let source: String
-    let status: MascotAgentStatus
+    let status: AgentStatus
     var size: CGFloat = 27
-    @AppStorage(SettingsKey.mascotSpeed) private var speedPct = SettingsDefaults.mascotSpeed
-    @ObservedObject private var animationGate = MascotAnimationGate.shared
 
     var body: some View {
-        Group {
-            switch source {
-            case "codex":
-                DexView(status: status, size: size)
-            case "gemini", "google-antigravity":
-                // Google Antigravity is Gemini-based — reuse the Gemini mascot.
-                GeminiView(status: status, size: size)
-            case "cursor", "cursor-cli":
-                CursorView(status: status, size: size)
-            case "trae", "traecn", "traecli":
-                TraeView(status: status, size: size)
-            case "copilot":
-                CopilotView(status: status, size: size)
-            case "qoder", "qoder-cli", "qoderwork":
-                QoderView(status: status, size: size)
-            case "droid":
-                DroidView(status: status, size: size)
-            case "codebuddy":
-                BuddyView(status: status, size: size)
-            case "codybuddycn":
-                BuddyView(status: status, size: size)
-            case "stepfun":
-                StepFunView(status: status, size: size)
-            case "opencode":
-                OpenCodeView(status: status, size: size)
-            case "qwen":
-                QwenView(status: status, size: size)
-            case "antigravity":
-                AntiGravityView(status: status, size: size)
-            case "workbuddy":
-                WorkBuddyView(status: status, size: size)
-            case "hermes":
-                HermesView(status: status, size: size)
-            case "openclaw":
-                OpenClawView(status: status, size: size)
-            case "kiro":
-                KiroView(status: status, size: size)
-            case "kimi":
-                KimiView(status: status, size: size)
-            case "pi", "omp":
-                PiView(status: status, size: size)
-            case "cline":
-                ClineView(status: status, size: size)
-            default:
-                ClawdView(status: status, size: size)
-            }
-        }
-        .environment(\.mascotSpeed, Double(speedPct) / 100.0)
-        .environment(\.mascotAnimationsActive, animationGate.animationsActive)
-        .environment(\.mascotAnimationEpoch, animationGate.epoch)
+        CodexStatusIcon(status: status, size: size)
     }
 }

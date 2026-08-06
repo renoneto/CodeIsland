@@ -100,7 +100,6 @@ struct NotchPanelView: View {
     @AppStorage(SettingsKey.collapsedWidthScale) private var collapsedWidthScale = SettingsDefaults.collapsedWidthScale
     @AppStorage(SettingsKey.hapticOnHover) private var hapticOnHover = SettingsDefaults.hapticOnHover
     @AppStorage(SettingsKey.hapticIntensity) private var hapticIntensity = SettingsDefaults.hapticIntensity
-    @ObservedObject private var animationGate = MascotAnimationGate.shared
 
     /// Delayed hover: prevents accidental expansion when mouse passes through
     @State private var hoverTimer: Timer?
@@ -418,8 +417,6 @@ struct NotchPanelView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(NotchAnimation.open, value: appState.surface)
-        .environment(\.mascotAnimationsActive, animationGate.animationsActive)
-        .environment(\.mascotAnimationEpoch, animationGate.epoch)
     }
 }
 
@@ -2950,65 +2947,13 @@ private struct TypingIndicator: View {
     var label: String? = nil
     var bright: Bool = false
     var color: Color? = nil
-    @State private var phase: CGFloat = -60
-    @Environment(\.mascotAnimationsActive) private var animationsActive
-    @Environment(\.mascotAnimationEpoch) private var animationEpoch
-
     var body: some View {
         if let label {
             let baseColor: Color = color ?? .white
             let baseOpacity: Double = bright ? 0.6 : 0.35
-            let peakOpacity: Double = bright ? 0.8 : 0.5
-            let midOpacity: Double = bright ? 0.5 : 0.3
-            let bandWidth: CGFloat = bright ? 80 : 60
-            let duration: Double = 2.5
-            let endPhase: CGFloat = bright ? 100 : 80
-            let startPhase: CGFloat = bright ? -80 : -60
-
             Text(label)
                 .font(.system(size: fontSize, design: .monospaced))
                 .foregroundStyle(baseColor.opacity(baseOpacity))
-                .overlay(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: .white.opacity(midOpacity), location: bright ? 0.35 : 0.4),
-                            .init(color: .white.opacity(peakOpacity), location: 0.5),
-                            .init(color: .white.opacity(midOpacity), location: bright ? 0.65 : 0.6),
-                            .init(color: .clear, location: 1),
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: bandWidth)
-                    .offset(x: phase)
-                    .mask(
-                        Text(label)
-                            .font(.system(size: fontSize, design: .monospaced))
-                    )
-                )
-                .onAppear {
-                    guard animationsActive else {
-                        phase = endPhase
-                        return
-                    }
-                    phase = startPhase
-                    withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: false)) {
-                        phase = endPhase
-                    }
-                }
-                .onChange(of: animationsActive) { _, isActive in
-                    guard isActive else {
-                        phase = endPhase
-                        return
-                    }
-                    phase = startPhase
-                    withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: false)) {
-                        phase = endPhase
-                    }
-                }
-                .id(animationEpoch)
-                .onDisappear { phase = startPhase }
         }
     }
 }

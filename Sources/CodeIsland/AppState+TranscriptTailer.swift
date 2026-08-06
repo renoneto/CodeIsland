@@ -252,7 +252,6 @@ extension AppState {
                 questionStateChanged = true
             }
             if application == .markedWaiting(fresh: true) {
-                SoundManager.shared.handleEvent("PermissionRequest")
             }
         }
 

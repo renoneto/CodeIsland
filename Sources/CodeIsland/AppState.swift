@@ -723,8 +723,6 @@ final class AppState {
         } else {
             rotatingSessionId = cachedActiveIds.first
         }
-        ESP32StatePublisher.shared.notifyDirty()
-        AppleCompanionPublisher.shared.notifyDirty()
     }
 
     /// Start monitoring the CLI process for a session.
@@ -1085,8 +1083,6 @@ final class AppState {
         if primarySource != effectiveSource { primarySource = effectiveSource }
         if activeSessionCount != summary.activeSessionCount { activeSessionCount = summary.activeSessionCount }
         if totalSessionCount != summary.totalSessionCount { totalSessionCount = summary.totalSessionCount }
-        ESP32StatePublisher.shared.notifyDirty()
-        AppleCompanionPublisher.shared.notifyDirty()
     }
 
     private func refreshProviderTitle(for trackedSessionId: String, providerSessionId: String? = nil) {
@@ -1244,8 +1240,8 @@ final class AppState {
 
     private func executeEffect(_ effect: SideEffect, sessionId: String) {
         switch effect {
-        case .playSound(let eventName):
-            SoundManager.shared.handleEvent(eventName)
+        case .playSound:
+            break
         case .tryMonitorSession(let sid):
             tryMonitorSession(sid)
         case .stopMonitor(let sid):
@@ -1332,7 +1328,6 @@ final class AppState {
             if surface != .sessionList, shouldAutoOpenPendingSurface(for: sessionId) {
                 surface = .approvalCard(sessionId: sessionId)
             }
-            SoundManager.shared.handleEvent("PermissionRequest")
         }
         refreshDerivedState()
     }
@@ -1611,7 +1606,6 @@ final class AppState {
                     surface = .questionCard(sessionId: sessionId)
                 }
             }
-            SoundManager.shared.handleEvent("PermissionRequest")
         }
         refreshDerivedState()
     }
@@ -1736,7 +1730,6 @@ final class AppState {
                     surface = .questionCard(sessionId: sessionId)
                 }
             }
-            SoundManager.shared.handleEvent("PermissionRequest")
         }
         refreshDerivedState()
     }

@@ -186,14 +186,6 @@ class HookServer {
         }
     }
 
-    /// Looks up the configured cwd filter for a remote host id. Nil when the
-    /// event is not remote or the host is no longer configured.
-    private static func remoteCwdFilter(for event: HookEvent) -> String? {
-        guard let hostId = event.rawJSON["_remote_host_id"] as? String,
-              !hostId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return RemoteManager.shared.hosts.first(where: { $0.id == hostId })?.cwdFilter
-    }
-
     /// Fire-and-forget POST of the hook event to a user-configured webhook URL.
     /// Wraps the raw event in a small envelope (event/source/session/cwd/tool/raw)
     /// so users on the receiving side don't need to dig through bridge-internal
@@ -287,12 +279,7 @@ class HookServer {
 
     static func routeKind(for event: HookEvent) -> RouteKind {
         let normalizedEventName = EventNormalizer.normalize(event.eventName)
-        let source = event.rawJSON["_source"] as? String
-        let normalizedSource = SessionSnapshot.normalizedSupportedSource(source)
-        let isGeminiBasedSource = normalizedSource == "google-antigravity" || normalizedSource == "gemini"
-        // Gemini CLI and Google Antigravity send their blocking approval as PreToolUse.
-        // Route those source-tagged events through the same permission UI path.
-        if normalizedEventName == "PermissionRequest" || (isGeminiBasedSource && normalizedEventName == "PreToolUse") {
+        if normalizedEventName == "PermissionRequest" {
             return .permission
         }
         if normalizedEventName == "Notification", QuestionPayload.from(event: event) != nil {
@@ -492,8 +479,7 @@ class HookServer {
             promptPreview: promptPreview
         )
 
-        if let rawSource = event.rawJSON["_source"] as? String,
-           SessionSnapshot.normalizedSupportedSource(rawSource) == nil {
+        guard SessionSnapshot.normalizedSupportedSource(event.rawJSON["_source"] as? String) == "codex" else {
             sendResponse(connection: connection, data: Data("{}".utf8))
             return
         }
@@ -504,24 +490,6 @@ class HookServer {
         if let cwd = event.rawJSON["cwd"] as? String,
            !cwd.isEmpty,
            Self.eventMatchesExcludedCwd(cwd) {
-            sendResponse(connection: connection, data: Data("{}".utf8))
-            return
-        }
-
-        // Per-host cwd allow-list for remote sessions (#240): on a shared remote
-        // account every user's hooks reach every connected client — scope this
-        // panel to the configured working directories and drop the rest.
-        if let filterCSV = Self.remoteCwdFilter(for: event),
-           !Self.remoteEventPassesCwdFilter(
-               cwd: event.rawJSON["cwd"] as? String,
-               workspaceRoots: event.rawJSON["workspace_roots"] as? [String],
-               filterCSV: filterCSV
-           ),
-           !Self.remoteEventBypassesCwdFilter(
-               eventName: event.eventName,
-               sessionId: event.sessionId,
-               trackedSessionIds: Set(appState.sessions.keys)
-           ) {
             sendResponse(connection: connection, data: Data("{}".utf8))
             return
         }

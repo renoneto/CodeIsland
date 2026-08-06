@@ -4,6 +4,10 @@ import CodeIslandCore
 import Yams
 
 final class ConfigInstallerTests: XCTestCase {
+    func testLeanBuildInstallsOnlyCodexHooks() {
+        XCTAssertEqual(ConfigInstaller.managedCLIs.map(\.source), ["codex"])
+    }
+
     private func yamlRootDict(_ yaml: String, file: StaticString = #filePath, line: UInt = #line) throws -> [String: Any] {
         let any = try XCTUnwrap(try Yams.load(yaml: yaml), file: file, line: line)
         if let d = any as? [String: Any] { return d }
