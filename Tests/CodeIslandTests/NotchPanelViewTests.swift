@@ -189,9 +189,9 @@ final class NotchPanelViewTests: XCTestCase {
 // MARK: - Hover phase state machine (PR #208)
 
 final class NotchHoverInteractionTests: XCTestCase {
-    func testMonitorVisibilityRequiresAtLeastOneActiveSession() {
-        XCTAssertTrue(NotchMonitorVisibility.shouldShow(activeSessionCount: 1))
-        XCTAssertFalse(NotchMonitorVisibility.shouldShow(activeSessionCount: 0))
+    func testMonitorVisibilityRequiresAtLeastOneTrackedSession() {
+        XCTAssertTrue(NotchMonitorVisibility.shouldShow(trackedSessionCount: 1))
+        XCTAssertFalse(NotchMonitorVisibility.shouldShow(trackedSessionCount: 0))
     }
 
     func testQuickPassThroughReversesPrehoverWithoutExpanding() {

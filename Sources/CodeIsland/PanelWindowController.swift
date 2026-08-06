@@ -573,7 +573,7 @@ class PanelWindowController: NSObject, NSWindowDelegate {
     /// Update panel visibility based on settings
     private func updateVisibility() {
         guard let panel = panel else { return }
-        if !NotchMonitorVisibility.shouldShow(activeSessionCount: appState.activeSessionCount) {
+        if !NotchMonitorVisibility.shouldShow(trackedSessionCount: appState.totalSessionCount) {
             panel.orderOut(nil)
             return
         }

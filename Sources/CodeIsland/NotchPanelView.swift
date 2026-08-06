@@ -61,8 +61,8 @@ enum NotchHoverInteraction {
 }
 
 enum NotchMonitorVisibility {
-    static func shouldShow(activeSessionCount: Int) -> Bool {
-        activeSessionCount > 0
+    static func shouldShow(trackedSessionCount: Int) -> Bool {
+        trackedSessionCount > 0
     }
 }
 
@@ -123,7 +123,7 @@ struct NotchPanelView: View {
     }
     /// Whether the bar content should be visible (respects hideWhenNoSession)
     private var showBar: Bool {
-        NotchMonitorVisibility.shouldShow(activeSessionCount: appState.activeSessionCount)
+        NotchMonitorVisibility.shouldShow(trackedSessionCount: appState.totalSessionCount)
     }
     private var shouldShowExpanded: Bool {
         showBar && appState.surface.isExpanded
