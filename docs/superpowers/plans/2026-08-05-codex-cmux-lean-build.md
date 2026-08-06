@@ -1,5 +1,7 @@
 # Codex + CMUX Lean Build Implementation Plan
 
+> **Status (2026-08-06):** Implemented with a later scope correction: the lean build supports Codex, Claude Code, and Gemini (not Codex alone). See `docs/compact-plan/2026-08-06-0904-lean-monitor.md` for the verified current behavior.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship a CodeIsland build that monitors Codex sessions in CMUX with no animated rendering, periodic hook repair, or optional-device/remote/updater/sound runtime paths.
