@@ -87,6 +87,40 @@ final class AppStateQuestionFlowTests: XCTestCase {
         XCTAssertEqual(answers["你希望我主要使用哪种语言回复？"] as? String, "中文")
     }
 
+    func testCodexActivityDoesNotClearQueuedAskUserQuestion() async throws {
+        let appState = AppState()
+        let sessionId = "s-activity-does-not-answer"
+        let questionEvent = try makeAskUserQuestionEvent(
+            sessionId: sessionId,
+            questions: [
+                question(header: "Continue", text: "Which option should I use?", options: ["A", "B"])
+            ]
+        )
+
+        let responseTask = Task<Data, Never> {
+            await withCheckedContinuation { continuation in
+                appState.handleAskUserQuestion(questionEvent, continuation: continuation)
+            }
+        }
+        await Task.yield()
+
+        let activityData = try JSONSerialization.data(withJSONObject: [
+            "hook_event_name": "PostToolUse",
+            "session_id": sessionId,
+            "_source": "codex",
+            "cwd": "/private/tmp/codex-question-test",
+            "transcript_path": "/private/tmp/codex-question-test.jsonl",
+            "tool_name": "Read",
+        ])
+        appState.handleEvent(try XCTUnwrap(HookEvent(from: activityData)))
+
+        XCTAssertEqual(appState.questionQueue.count, 1)
+        XCTAssertEqual(appState.surface, .questionCard(sessionId: sessionId))
+
+        appState.skipQuestion()
+        _ = await responseTask.value
+    }
+
     func testAskUserQuestionOpensQuestionCardWhenSmartSuppressSeesGhosttyFrontmost() async throws {
         UserDefaults.standard.set(true, forKey: SettingsKey.smartSuppress)
         let appState = AppState()

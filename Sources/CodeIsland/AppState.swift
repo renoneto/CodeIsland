@@ -1176,14 +1176,13 @@ final class AppState {
         //
         // The right signal that a specific permission is moot is its tool_use_id
         // showing up in PostToolUse / PostToolUseFailure / PermissionDenied —
-        // resolveToolUseIfCompleted already does that surgically above. We keep
-        // the question-queue drain (questions don't carry tool_use_id reliably
-        // and are rare enough that a blanket sweep is acceptable) and refresh
-        // session status, but never drain unrelated permission requests.
+        // resolveToolUseIfCompleted already does that surgically above. Questions
+        // must remain queued until their own answer/skip/disconnect path resolves
+        // them: Codex can emit unrelated activity while its in-island question is
+        // still waiting for the user.
         if wasWaiting {
             let keepWaiting: Set<String> = ["Notification", "SessionStart", "SessionEnd", "PreCompact"]
             if !keepWaiting.contains(normalizedEventName) {
-                drainQuestions(forSession: sessionId, reason: "wasWaiting-blanket-drain-event=\(normalizedEventName)")
                 let stillHasPermission = permissionQueue.contains { $0.event.sessionId == sessionId }
                 let stillHasQuestion = questionQueue.contains { $0.event.sessionId == sessionId }
                 if !stillHasPermission && !stillHasQuestion,
