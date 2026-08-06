@@ -179,7 +179,7 @@ struct SettingsDefaults {
 
     static let collapsedWidthScale = 100  // percentage
 
-    static let defaultSource = "claude"
+    static let defaultSource = "codex"
 
     static let esp32BridgeEnabled = false
     static let esp32HeartbeatSeconds = 5.0

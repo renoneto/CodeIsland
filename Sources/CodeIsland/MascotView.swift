@@ -1,8 +1,10 @@
+import AppKit
 import SwiftUI
 import CodeIslandCore
 
 /// A static glyph keeps the notch informative without an animation scheduler.
 struct CodexStatusIcon: View {
+    let source: String
     let status: AgentStatus
     var size: CGFloat = 27
 
@@ -17,6 +19,10 @@ struct CodexStatusIcon: View {
         }
     }
 
+    static func assetName(for source: String) -> String {
+        source == "claude" ? "claude" : "codex"
+    }
+
     private var color: Color {
         switch status {
         case .waitingApproval, .waitingQuestion: return .orange
@@ -26,11 +32,20 @@ struct CodexStatusIcon: View {
     }
 
     var body: some View {
-        Image(systemName: Self.symbol(for: status))
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(color)
-            .font(.system(size: size * 0.62, weight: .medium))
-            .frame(width: size, height: size)
+        Group {
+            if let url = Bundle.module.url(forResource: Self.assetName(for: source), withExtension: "png", subdirectory: "cli-icons"),
+               let image = NSImage(contentsOf: url) {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+            } else {
+                Image(systemName: Self.symbol(for: status))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(color)
+            }
+        }
+        .frame(width: size, height: size)
     }
 }
 
@@ -41,6 +56,6 @@ struct MascotView: View {
     var size: CGFloat = 27
 
     var body: some View {
-        CodexStatusIcon(status: status, size: size)
+        CodexStatusIcon(source: source, status: status, size: size)
     }
 }

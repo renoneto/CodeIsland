@@ -201,17 +201,18 @@ final class NotchHoverInteractionTests: XCTestCase {
         XCTAssertEqual(phase, .collapsed)
     }
 
-    func testDwellExpandsThenCollapsesAfterLeaveDelay() {
+    func testDwelledPanelStaysExpandedAfterSyntheticMouseExit() {
         var phase = NotchHoverInteraction.nextPhase(from: .collapsed, event: .mouseEntered)
         phase = NotchHoverInteraction.nextPhase(from: phase, event: .expandDelayElapsed)
         XCTAssertEqual(phase, .expanded)
 
-        // Leaving alone doesn't collapse an expanded panel — the delay does.
+        // A panel resize can generate a synthetic mouse exit. It must not
+        // collapse the just-opened monitor and re-trigger hover in a loop.
         phase = NotchHoverInteraction.nextPhase(from: phase, event: .mouseExited)
         XCTAssertEqual(phase, .expanded)
 
         phase = NotchHoverInteraction.nextPhase(from: phase, event: .collapseDelayElapsed)
-        XCTAssertEqual(phase, .collapsed)
+        XCTAssertEqual(phase, .expanded)
     }
 
     func testCollapseDelayWhileNotExpandedIsANoOp() {

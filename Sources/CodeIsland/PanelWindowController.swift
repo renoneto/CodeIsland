@@ -579,11 +579,6 @@ class PanelWindowController: NSObject, NSWindowDelegate {
             return
         }
 
-        if settings.hideWhenNoSession && appState.activeSessionCount == 0 {
-            panel.orderOut(nil)
-            return
-        }
-
         if !panel.isVisible {
             panel.orderFrontRegardless()
         }

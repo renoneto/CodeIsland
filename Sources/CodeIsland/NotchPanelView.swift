@@ -54,8 +54,6 @@ enum NotchHoverInteraction {
             return .collapsed
         case (.prehover, .expandDelayElapsed):
             return .expanded
-        case (.expanded, .collapseDelayElapsed):
-            return .collapsed
         default:
             return phase
         }
@@ -116,11 +114,11 @@ struct NotchPanelView: View {
     /// First launch / no-session state should still render a visible marker so the app
     /// doesn't disappear completely behind the physical notch.
     private var showIdleIndicator: Bool {
-        !isActive && !hideWhenNoSession
+        !isActive
     }
     /// Whether the bar content should be visible (respects hideWhenNoSession)
     private var showBar: Bool {
-        isActive && !(hideWhenNoSession && appState.activeSessionCount == 0)
+        isActive
     }
     private var shouldShowExpanded: Bool {
         showBar && appState.surface.isExpanded
@@ -388,18 +386,8 @@ struct NotchPanelView: View {
                     withAnimation(NotchAnimation.hoverPrehover) {
                         hoverPhase = NotchHoverInteraction.nextPhase(from: hoverPhase, event: .mouseExited)
                     }
-                    // …and collapse an expanded panel after a grace delay so an
-                    // accidental mouse-out doesn't flicker it shut.
                     hoverTimer?.invalidate()
-                    hoverTimer = Timer.scheduledTimer(withTimeInterval: NotchHoverInteraction.collapseDelay, repeats: false) { _ in
-                        Task { @MainActor in
-                            guard !isHovered else { return }
-                            hoverPhase = NotchHoverInteraction.nextPhase(from: hoverPhase, event: .collapseDelayElapsed)
-                            withAnimation(NotchAnimation.close) {
-                                appState.surface = .collapsed
-                            }
-                        }
-                    }
+                    hoverTimer = nil
                 }
             }
             .onChange(of: appState.surface) { _, newSurface in
