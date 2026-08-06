@@ -126,15 +126,13 @@ struct ClawdView: View {
     // SLEEP — sploot pose, breathing, floating z's
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     private var sleepScene: some View {
-        ZStack {
-            // Character body (behind) — 8fps: breathing/blinking needs no more,
-            // and the idle panel is the always-visible steady state (#14 heat).
-            gatedTimeline(every: 0.12) { t in
+        gatedTimeline(every: 0.12) { t in
+            ZStack {
+                // Character body (behind) — 8fps: breathing/blinking needs no more,
+                // and the idle panel is the always-visible steady state (#14 heat).
                 sleepCanvas(t: t)
-            }
 
-            // Z's — continuous float-up loop, staggered timing
-            gatedTimeline(every: 0.12) { t in
+                // Z's — continuous float-up loop, staggered timing
                 floatingZs(t: t)
             }
         }

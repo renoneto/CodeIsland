@@ -81,8 +81,8 @@ struct OpenClawView: View {
 
     // ── SLEEP: drifting, claws drooped, slow-blink stalk eyes, Z's ──
     private var sleepScene: some View {
-        ZStack {
-            MascotTimeline(interval: 0.12) { t in
+        MascotTimeline(interval: 0.12) { t in
+            ZStack {
                 let float = sin(t * 2 * .pi / 4.15) * 0.65 + sin(t * 2 * .pi / 6.6) * 0.35
                 // A claw twitches in its dreams now and then.
                 let twitch = MascotMotion.quirk(t, cycle: 7.5, duration: 0.6, seed: 0xC1A3)
@@ -94,8 +94,6 @@ struct OpenClawView: View {
                         eyeOpen: 0.15
                     )
                 }
-            }
-            MascotTimeline(interval: 0.12) { t in
                 floatingZs(t: t)
             }
         }

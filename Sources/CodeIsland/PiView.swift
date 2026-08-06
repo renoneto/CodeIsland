@@ -7,6 +7,8 @@ struct PiView: View {
     let status: AgentStatus
     var size: CGFloat = 27
     @State private var alive = false
+    @Environment(\.mascotAnimationsActive) private var animationsActive
+    @Environment(\.mascotAnimationEpoch) private var animationEpoch
 
     private static let shellC = Color(red: 0.14, green: 0.49, blue: 0.53)
     private static let shellDk = Color(red: 0.09, green: 0.30, blue: 0.34)
@@ -103,8 +105,8 @@ struct PiView: View {
     }
 
     private var sleepScene: some View {
-        ZStack {
-            MascotTimeline(interval: 0.12) { t in
+        MascotTimeline(interval: 0.12) { t in
+            ZStack {
                 // De-synced dual-sine drift — unique rhythm per mascot (#15).
                 let float = sin(t * 2 * .pi / 4.04) * 0.59 + sin(t * 2 * .pi / 6.87) * 0.32
                 let blinkCycle = t.truncatingRemainder(dividingBy: 4.0)
@@ -116,8 +118,6 @@ struct PiView: View {
                     drawBody(c, v: v, dy: float, scale: 0.94)
                     drawPiFace(c, v: v, dy: float, eyeScale: blink)
                 }
-            }
-            MascotTimeline(interval: 0.12) { t in
                 ZStack {
                     ForEach(0..<3, id: \.self) { i in
                         let ci = Double(i)
@@ -160,12 +160,19 @@ struct PiView: View {
     }
 
     private var alertScene: some View {
-        ZStack {
+        let glowActive = alive && animationsActive
+        return ZStack {
             Circle()
-                .fill(Self.alertC.opacity(alive ? 0.12 : 0))
+                .fill(Self.alertC.opacity(glowActive ? 0.12 : 0))
                 .frame(width: size * 0.8)
                 .blur(radius: size * 0.05)
-                .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: alive)
+                .animation(
+                    animationsActive
+                        ? .easeInOut(duration: 0.5).repeatForever(autoreverses: true)
+                        : .default,
+                    value: glowActive
+                )
+                .id(animationEpoch)
             MascotTimeline(interval: 0.03) { t in
                 let pct = t.truncatingRemainder(dividingBy: 3.5) / 3.5
                 let jumpY = lerp([(0,0),(0.03,0),(0.18,-7.5),(0.26,1.3),(0.34,-5.5),(0.42,0.8),(0.5,-2.5),(0.58,0.2),(0.68,0),(1,0)], at: pct)

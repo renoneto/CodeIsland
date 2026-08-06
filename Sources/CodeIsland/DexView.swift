@@ -6,6 +6,8 @@ struct DexView: View {
     let status: MascotAgentStatus
     var size: CGFloat = 27
     @State private var alive = false
+    @Environment(\.mascotAnimationsActive) private var animationsActive
+    @Environment(\.mascotAnimationEpoch) private var animationEpoch
 
     // OpenAI black & white palette — white body, black prompt
     private static let cloudC    = Color(red: 0.92, green: 0.92, blue: 0.93) // off-white
@@ -132,11 +134,9 @@ struct DexView: View {
     // SLEEP — floating gently, cursor blinking slow
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     private var sleepScene: some View {
-        ZStack {
-            MascotTimeline(interval: 0.12) { t in
+        MascotTimeline(interval: 0.12) { t in
+            ZStack {
                 sleepCanvas(t: t)
-            }
-            MascotTimeline(interval: 0.12) { t in
                 floatingZs(t: t)
             }
         }
@@ -250,12 +250,19 @@ struct DexView: View {
     // ALERT — shaking, prompt flashing amber
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     private var alertScene: some View {
-        ZStack {
+        let glowActive = alive && animationsActive
+        return ZStack {
             Circle()
-                .fill(Self.alertC.opacity(alive ? 0.12 : 0))
+                .fill(Self.alertC.opacity(glowActive ? 0.12 : 0))
                 .frame(width: size * 0.8)
                 .blur(radius: size * 0.05)
-                .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: alive)
+                .animation(
+                    animationsActive
+                        ? .easeInOut(duration: 0.5).repeatForever(autoreverses: true)
+                        : .default,
+                    value: glowActive
+                )
+                .id(animationEpoch)
 
             MascotTimeline(interval: 0.03) { t in
                 alertCanvas(t: t)

@@ -73,8 +73,8 @@ struct KiroView: View {
 
     // ── SLEEP: slow drift, hem sway, long blinks, Z's ──
     private var sleepScene: some View {
-        ZStack {
-            MascotTimeline(interval: 0.12) { t in
+        MascotTimeline(interval: 0.12) { t in
+            ZStack {
                 let float = sin(t * 2 * .pi / 4.4) * 0.7 + sin(t * 2 * .pi / 6.9) * 0.35
                 let hemPhase = Int(t / 0.9) % 2
                 // Ghost dozes with eyes nearly shut; a rare slow re-open quirk.
@@ -83,8 +83,6 @@ struct KiroView: View {
                     let v = V(sz)
                     drawGhost(c, v: v, dy: float, hemPhase: hemPhase, eyeOpen: 0.15 + stir * 0.5, shadow: false)
                 }
-            }
-            MascotTimeline(interval: 0.12) { t in
                 ForEach(0..<2, id: \.self) { i in
                     let ci = Double(i)
                     let cycle = 3.1 + ci * 0.4
