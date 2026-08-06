@@ -48,6 +48,17 @@ final class AppStatePermissionFlowTests: XCTestCase {
         XCTAssertTrue(appState.shouldAutoOpenPendingSurface(for: "s-smart-off") { _ in true })
     }
 
+    func testSmartSuppressDoesNotHidePendingCMUXSession() {
+        UserDefaults.standard.set(true, forKey: SettingsKey.smartSuppress)
+        let appState = AppState()
+        var session = SessionSnapshot()
+        session.termApp = "cmux"
+        session.termBundleId = "com.cmuxterm.app"
+        appState.sessions["s-cmux"] = session
+
+        XCTAssertTrue(appState.shouldAutoOpenPendingSurface(for: "s-cmux") { _ in true })
+    }
+
     func testDismissPermissionSkipsAlreadyDismissedSessions() async throws {
         let appState = AppState()
 

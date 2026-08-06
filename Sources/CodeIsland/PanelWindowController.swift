@@ -139,7 +139,6 @@ class PanelWindowController: NSObject, NSWindowDelegate {
     private var visibilityTimer: Timer?
     private var autoScreenPoller: Timer?
     private var fullscreenPoller: Timer?
-    private var sessionObservationTask: Task<Void, Never>?
     private var fullscreenLatch = false
     private var settingsObservers: [NSObjectProtocol] = []
     private var globalClickMonitor: Any?
@@ -245,18 +244,7 @@ class PanelWindowController: NSObject, NSWindowDelegate {
             }
         }
 
-        // Observe session changes via @Observable tracking
-        sessionObservationTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                withObservationTracking {
-                    _ = self?.appState.sessions
-                    _ = self?.appState.surface
-                } onChange: {
-                    Task { @MainActor in self?.updateVisibility() }
-                }
-                try? await Task.sleep(for: .milliseconds(500))
-            }
-        }
+        observeSessionState()
 
         // Observe settings changes (display choice, panel height)
         observeSettingsChanges()
@@ -441,6 +429,24 @@ class PanelWindowController: NSObject, NSWindowDelegate {
                 self?.refreshCurrentScreen()
             }
         }
+        // This fallback is intentionally opportunistic. Screen/Space/app notifications
+        // handle normal updates; allow macOS to batch this rare CGWindowList work.
+        autoScreenPoller?.tolerance = 1.0
+    }
+
+    /// Observation tracking is one-shot. Re-register only after an actual session or
+    /// surface mutation instead of waking twice per second while the app is idle.
+    private func observeSessionState() {
+        withObservationTracking {
+            _ = appState.sessions
+            _ = appState.surface
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.updateVisibility()
+                self.observeSessionState()
+            }
+        }
     }
 
     private func updatePosition() {
@@ -618,7 +624,8 @@ class PanelWindowController: NSObject, NSWindowDelegate {
     func isActiveTerminalForeground() -> Bool {
         guard let sessionId = appState.activeSessionId,
               let session = appState.sessions[sessionId],
-              session.termApp != nil else { return false }
+              session.termApp != nil,
+              !AppState.isCMUXSession(session) else { return false }
         return TerminalVisibilityDetector.isTerminalFrontmostForSession(session)
     }
 

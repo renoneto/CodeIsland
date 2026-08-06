@@ -100,6 +100,7 @@ struct NotchPanelView: View {
     @AppStorage(SettingsKey.collapsedWidthScale) private var collapsedWidthScale = SettingsDefaults.collapsedWidthScale
     @AppStorage(SettingsKey.hapticOnHover) private var hapticOnHover = SettingsDefaults.hapticOnHover
     @AppStorage(SettingsKey.hapticIntensity) private var hapticIntensity = SettingsDefaults.hapticIntensity
+    @ObservedObject private var animationGate = MascotAnimationGate.shared
 
     /// Delayed hover: prevents accidental expansion when mouse passes through
     @State private var hoverTimer: Timer?
@@ -417,6 +418,8 @@ struct NotchPanelView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(NotchAnimation.open, value: appState.surface)
+        .environment(\.mascotAnimationsActive, animationGate.animationsActive)
+        .environment(\.mascotAnimationEpoch, animationGate.epoch)
     }
 }
 
@@ -2948,6 +2951,8 @@ private struct TypingIndicator: View {
     var bright: Bool = false
     var color: Color? = nil
     @State private var phase: CGFloat = -60
+    @Environment(\.mascotAnimationsActive) private var animationsActive
+    @Environment(\.mascotAnimationEpoch) private var animationEpoch
 
     var body: some View {
         if let label {
@@ -2983,11 +2988,26 @@ private struct TypingIndicator: View {
                     )
                 )
                 .onAppear {
+                    guard animationsActive else {
+                        phase = endPhase
+                        return
+                    }
                     phase = startPhase
                     withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: false)) {
                         phase = endPhase
                     }
                 }
+                .onChange(of: animationsActive) { _, isActive in
+                    guard isActive else {
+                        phase = endPhase
+                        return
+                    }
+                    phase = startPhase
+                    withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: false)) {
+                        phase = endPhase
+                    }
+                }
+                .id(animationEpoch)
                 .onDisappear { phase = startPhase }
         }
     }

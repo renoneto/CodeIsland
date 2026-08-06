@@ -79,7 +79,7 @@ struct KiroView: View {
                 let hemPhase = Int(t / 0.9) % 2
                 // Ghost dozes with eyes nearly shut; a rare slow re-open quirk.
                 let stir = MascotMotion.quirk(t, cycle: 8.5, duration: 1.0, seed: 0x419A)
-                return Canvas { c, sz in
+                Canvas { c, sz in
                     let v = V(sz)
                     drawGhost(c, v: v, dy: float, hemPhase: hemPhase, eyeOpen: 0.15 + stir * 0.5, shadow: false)
                 }

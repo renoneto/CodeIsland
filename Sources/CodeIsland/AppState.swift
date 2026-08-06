@@ -224,6 +224,9 @@ final class AppState {
                 self?.cleanupIdleSessions()
             }
         }
+        // This is fallback maintenance; a little scheduling flexibility lets macOS
+        // coalesce the wakeup without changing the three-second state-settle window.
+        cleanupTimer?.tolerance = 0.5
     }
 
     private func cleanupIdleSessions() {
@@ -934,7 +937,17 @@ final class AppState {
         guard UserDefaults.standard.bool(forKey: SettingsKey.smartSuppress) else { return true }
         guard let session = sessions[sessionId],
               (session.termApp != nil || session.termBundleId != nil) else { return true }
+        // CMUX does not expose the active workspace/surface through the generic terminal
+        // detector. Treating its whole app as the focused session hides attention from
+        // agents in other CMUX panes, so always surface pending CMUX sessions.
+        guard !Self.isCMUXSession(session) else { return true }
         return !isTerminalFrontmost(session)
+    }
+
+    static func isCMUXSession(_ session: SessionSnapshot) -> Bool {
+        guard session.termBundleId?.lowercased() == "com.cmuxterm.app" else { return false }
+        guard let termApp = session.termApp?.lowercased(), !termApp.isEmpty else { return true }
+        return termApp == "cmux" || termApp.hasSuffix("-cmux")
     }
 
     private func shouldAutoOpenQuestionSurface(for event: HookEvent) -> Bool {

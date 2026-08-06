@@ -86,7 +86,7 @@ struct OpenClawView: View {
                 let float = sin(t * 2 * .pi / 4.15) * 0.65 + sin(t * 2 * .pi / 6.6) * 0.35
                 // A claw twitches in its dreams now and then.
                 let twitch = MascotMotion.quirk(t, cycle: 7.5, duration: 0.6, seed: 0xC1A3)
-                return Canvas { c, sz in
+                Canvas { c, sz in
                     let v = V(sz)
                     drawLobster(
                         c, v: v, dy: float,
