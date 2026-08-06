@@ -134,7 +134,7 @@ struct SettingsDefaults {
     static let allowHorizontalDrag = false
     static let avoidMenuBarIcons = true  // #219: dodge Bartender & friends on external screens
     static let panelHorizontalOffset = 0.0
-    static let hideInFullscreen = true
+    static let hideInFullscreen = false
     static let hideWhenNoSession = false
     static let smartSuppress = true
     static let collapseOnMouseLeave = true

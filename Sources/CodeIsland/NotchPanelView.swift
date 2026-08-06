@@ -60,6 +60,12 @@ enum NotchHoverInteraction {
     }
 }
 
+enum NotchMonitorVisibility {
+    static func shouldShow(activeSessionCount: Int) -> Bool {
+        activeSessionCount > 0
+    }
+}
+
 enum ToolNameDisplay {
     static let compactMaxCharacters = 24
     static let compactMaxWidth: CGFloat = 120
@@ -93,7 +99,6 @@ struct NotchPanelView: View {
     @AppStorage(SettingsKey.contentFontSize) private var contentFontSize = SettingsDefaults.contentFontSize
     @AppStorage(SettingsKey.showAgentDetails) private var showAgentDetails = SettingsDefaults.showAgentDetails
     @AppStorage(SettingsKey.smartSuppress) private var smartSuppress = SettingsDefaults.smartSuppress
-    @AppStorage(SettingsKey.hideWhenNoSession) private var hideWhenNoSession = SettingsDefaults.hideWhenNoSession
     @AppStorage(SettingsKey.showToolStatus) private var showToolStatus = SettingsDefaults.showToolStatus
     @AppStorage(SettingsKey.collapsedWidthScale) private var collapsedWidthScale = SettingsDefaults.collapsedWidthScale
     @AppStorage(SettingsKey.hapticOnHover) private var hapticOnHover = SettingsDefaults.hapticOnHover
@@ -114,11 +119,11 @@ struct NotchPanelView: View {
     /// First launch / no-session state should still render a visible marker so the app
     /// doesn't disappear completely behind the physical notch.
     private var showIdleIndicator: Bool {
-        !isActive
+        false
     }
     /// Whether the bar content should be visible (respects hideWhenNoSession)
     private var showBar: Bool {
-        isActive
+        NotchMonitorVisibility.shouldShow(activeSessionCount: appState.activeSessionCount)
     }
     private var shouldShowExpanded: Bool {
         showBar && appState.surface.isExpanded

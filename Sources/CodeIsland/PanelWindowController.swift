@@ -573,12 +573,10 @@ class PanelWindowController: NSObject, NSWindowDelegate {
     /// Update panel visibility based on settings
     private func updateVisibility() {
         guard let panel = panel else { return }
-        let settings = SettingsManager.shared
-        if settings.hideInFullscreen && fullscreenLatch {
+        if !NotchMonitorVisibility.shouldShow(activeSessionCount: appState.activeSessionCount) {
             panel.orderOut(nil)
             return
         }
-
         if !panel.isVisible {
             panel.orderFrontRegardless()
         }
