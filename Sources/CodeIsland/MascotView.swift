@@ -20,7 +20,10 @@ struct CodexStatusIcon: View {
     }
 
     static func assetName(for source: String) -> String {
-        source == "claude" ? "claude" : "codex"
+        switch source {
+        case "claude", "gemini": return source
+        default: return "codex"
+        }
     }
 
     private var color: Color {

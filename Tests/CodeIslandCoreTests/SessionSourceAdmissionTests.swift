@@ -2,9 +2,10 @@ import XCTest
 @testable import CodeIslandCore
 
 final class SessionSourceAdmissionTests: XCTestCase {
-    func testNormalizedSupportedSourceAcceptsOnlyCodex() {
+    func testNormalizedSupportedSourceAcceptsLeanProviderSet() {
         XCTAssertEqual(SessionSnapshot.normalizedSupportedSource("codex"), "codex")
-        XCTAssertNil(SessionSnapshot.normalizedSupportedSource("claude"))
-        XCTAssertNil(SessionSnapshot.normalizedSupportedSource("gemini"))
+        XCTAssertEqual(SessionSnapshot.normalizedSupportedSource("claude"), "claude")
+        XCTAssertEqual(SessionSnapshot.normalizedSupportedSource("gemini"), "gemini")
+        XCTAssertNil(SessionSnapshot.normalizedSupportedSource("cursor"))
     }
 }

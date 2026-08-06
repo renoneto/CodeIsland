@@ -279,7 +279,8 @@ class HookServer {
 
     static func routeKind(for event: HookEvent) -> RouteKind {
         let normalizedEventName = EventNormalizer.normalize(event.eventName)
-        if normalizedEventName == "PermissionRequest" {
+        let source = SessionSnapshot.normalizedSupportedSource(event.rawJSON["_source"] as? String)
+        if normalizedEventName == "PermissionRequest" || (source == "gemini" && normalizedEventName == "PreToolUse") {
             return .permission
         }
         if normalizedEventName == "Notification", QuestionPayload.from(event: event) != nil {
@@ -479,7 +480,7 @@ class HookServer {
             promptPreview: promptPreview
         )
 
-        guard SessionSnapshot.normalizedSupportedSource(event.rawJSON["_source"] as? String) == "codex" else {
+        guard SessionSnapshot.normalizedSupportedSource(event.rawJSON["_source"] as? String) != nil else {
             sendResponse(connection: connection, data: Data("{}".utf8))
             return
         }

@@ -567,10 +567,10 @@ struct ConfigInstaller {
         builtInCLIs + customCLIs()
     }
 
-    /// This fork owns only the Codex hook integration. Keeping the upstream
-    /// catalog separate avoids rewriting or repairing other tools' configs.
+    /// This fork owns the lightweight Codex, Claude Code, and Gemini hook
+    /// integrations. It does not rewrite any other provider's config.
     static var managedCLIs: [CLIConfig] {
-        builtInCLIs.filter { $0.source == "codex" }
+        builtInCLIs.filter { ["codex", "claude", "gemini"].contains($0.source) }
     }
 
     /// Non-Claude CLIs (installed via bridge binary directly)
@@ -942,7 +942,7 @@ struct ConfigInstaller {
 
     /// Whether a CLI is enabled by user (UserDefaults). Default: true.
     static func isEnabled(source: String) -> Bool {
-        guard source == "codex" else { return false }
+        guard ["codex", "claude", "gemini"].contains(source) else { return false }
         let key = "cli_enabled_\(source)"
         if UserDefaults.standard.object(forKey: key) == nil { return true }
         return UserDefaults.standard.bool(forKey: key)
@@ -951,7 +951,7 @@ struct ConfigInstaller {
     /// Toggle a single CLI on/off: installs or uninstalls its hooks.
     @discardableResult
     static func setEnabled(source: String, enabled: Bool) -> Bool {
-        guard source == "codex" else { return false }
+        guard ["codex", "claude", "gemini"].contains(source) else { return false }
         UserDefaults.standard.set(enabled, forKey: "cli_enabled_\(source)")
         let fm = FileManager.default
         if enabled {
