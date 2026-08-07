@@ -16,7 +16,18 @@ class SettingsWindowController {
         }
     }
 
+    func collapseIslandForSettings() {
+        guard let appState, appState.surface.isExpanded else { return }
+
+        appState.cancelCompletionQueue()
+        withAnimation(NotchAnimation.close) {
+            appState.surface = .collapsed
+        }
+    }
+
     func show() {
+        collapseIslandForSettings()
+
         // Switch to regular activation policy so the window can receive focus
         NSApp.setActivationPolicy(.regular)
         // Use the actual bundle app icon so Dock matches the packaged asset catalog icon.

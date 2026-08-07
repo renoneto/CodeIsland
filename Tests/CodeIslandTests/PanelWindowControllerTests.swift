@@ -3,6 +3,18 @@ import XCTest
 @testable import CodeIsland
 
 final class PanelWindowControllerTests: XCTestCase {
+    @MainActor
+    func testOpeningSettingsCollapsesExpandedIsland() {
+        let appState = AppState()
+        appState.surface = .sessionList
+        let settingsController = SettingsWindowController()
+        settingsController.appState = appState
+
+        settingsController.collapseIslandForSettings()
+
+        XCTAssertEqual(appState.surface, .collapsed)
+    }
+
     func testScreenHopMotionUsesMoreVisibleTiming() {
         let motion = PanelWindowController.screenHopMotion()
 
