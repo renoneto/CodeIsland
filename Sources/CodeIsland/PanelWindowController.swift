@@ -188,6 +188,7 @@ class PanelWindowController: NSObject, NSWindowDelegate {
         setupHorizontalDragMonitor()
         updatePosition()
         panel.orderFrontRegardless()
+        log.notice("PANEL_ORDER_FRONT reason=created tracked=\(self.appState.totalSessionCount, privacy: .public) active=\(self.appState.activeSessionCount, privacy: .public)")
 
         // Screen change observer
         NotificationCenter.default.addObserver(
@@ -318,17 +319,20 @@ class PanelWindowController: NSObject, NSWindowDelegate {
 
     private func animateScreenHop(to screen: NSScreen, signature: String) {
         guard let panel = panel else {
+            log.notice("SCREEN_HOP reason=no-panel action=rebuild")
             rebuildForCurrentScreen(screen)
             return
         }
 
         if !panel.isVisible || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            log.notice("SCREEN_HOP reason=skip visible=\(panel.isVisible, privacy: .public) reduceMotion=\(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, privacy: .public) action=rebuild")
             rebuildForCurrentScreen(screen)
             panel.alphaValue = 1
             return
         }
 
         isAnimatingScreenHop = true
+        log.notice("SCREEN_HOP reason=screen-change action=fade-out visible=\(panel.isVisible, privacy: .public) alpha=\(panel.alphaValue, privacy: .public)")
         let oldFrame = panel.frame
         let newFrame = panelFrame(for: screen)
         let motion = Self.screenHopMotion()
@@ -371,6 +375,7 @@ class PanelWindowController: NSObject, NSWindowDelegate {
                         panel.animator().setFrame(newFrame, display: true)
                     } completionHandler: { [weak self] in
                         Task { @MainActor [weak self] in
+                            log.notice("SCREEN_HOP action=fade-in-complete")
                             self?.lastChosenScreenSignature = targetSignature
                             self?.isAnimatingScreenHop = false
                         }
@@ -442,6 +447,8 @@ class PanelWindowController: NSObject, NSWindowDelegate {
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
+                let panelVisible = self.panel?.isVisible ?? false
+                log.debug("PANEL_STATE_MUTATION tracked=\(self.appState.totalSessionCount, privacy: .public) active=\(self.appState.activeSessionCount, privacy: .public) expanded=\(self.appState.surface.isExpanded, privacy: .public) panelVisible=\(panelVisible, privacy: .public)")
                 self.updateVisibility()
                 self.observeSessionState()
             }
@@ -573,11 +580,19 @@ class PanelWindowController: NSObject, NSWindowDelegate {
     /// Update panel visibility based on settings
     private func updateVisibility() {
         guard let panel = panel else { return }
-        if !NotchMonitorVisibility.shouldShow(trackedSessionCount: appState.totalSessionCount) {
+        let trackedSessionCount = appState.totalSessionCount
+        let autoHideWhenNoSession = SettingsManager.shared.hideWhenNoSession
+        let shouldShow = NotchMonitorVisibility.shouldShow(trackedSessionCount: trackedSessionCount)
+
+        log.debug("PANEL_VISIBILITY_CHECK tracked=\(trackedSessionCount, privacy: .public) active=\(self.appState.activeSessionCount, privacy: .public) autoHide=\(autoHideWhenNoSession, privacy: .public) expanded=\(self.appState.surface.isExpanded, privacy: .public) visibleBefore=\(panel.isVisible, privacy: .public) alpha=\(panel.alphaValue, privacy: .public) shouldShow=\(shouldShow, privacy: .public)")
+
+        if !shouldShow {
+            log.notice("PANEL_ORDER_OUT reason=no-tracked-session autoHide=\(autoHideWhenNoSession, privacy: .public)")
             panel.orderOut(nil)
             return
         }
         if !panel.isVisible {
+            log.notice("PANEL_ORDER_FRONT reason=visibility-check")
             panel.orderFrontRegardless()
         }
     }
