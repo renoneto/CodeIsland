@@ -189,8 +189,20 @@ final class NotchPanelViewTests: XCTestCase {
 // MARK: - Hover phase state machine (PR #208)
 
 final class NotchHoverInteractionTests: XCTestCase {
-    func testMonitorVisibilityRequiresAtLeastOneTrackedSession() {
+    func testMonitorStaysVisibleWithoutTrackedSessionsWhenAutoHideIsOff() {
+        let previousValue = UserDefaults.standard.object(forKey: SettingsKey.hideWhenNoSession)
+        UserDefaults.standard.set(false, forKey: SettingsKey.hideWhenNoSession)
+        defer { UserDefaults.standard.set(previousValue, forKey: SettingsKey.hideWhenNoSession) }
+
         XCTAssertTrue(NotchMonitorVisibility.shouldShow(trackedSessionCount: 1))
+        XCTAssertTrue(NotchMonitorVisibility.shouldShow(trackedSessionCount: 0))
+    }
+
+    func testMonitorHidesWithoutTrackedSessionsWhenAutoHideIsOn() {
+        let previousValue = UserDefaults.standard.object(forKey: SettingsKey.hideWhenNoSession)
+        UserDefaults.standard.set(true, forKey: SettingsKey.hideWhenNoSession)
+        defer { UserDefaults.standard.set(previousValue, forKey: SettingsKey.hideWhenNoSession) }
+
         XCTAssertFalse(NotchMonitorVisibility.shouldShow(trackedSessionCount: 0))
     }
 

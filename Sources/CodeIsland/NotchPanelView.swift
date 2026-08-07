@@ -62,7 +62,7 @@ enum NotchHoverInteraction {
 
 enum NotchMonitorVisibility {
     static func shouldShow(trackedSessionCount: Int) -> Bool {
-        trackedSessionCount > 0
+        trackedSessionCount > 0 || !UserDefaults.standard.bool(forKey: SettingsKey.hideWhenNoSession)
     }
 }
 
@@ -99,6 +99,7 @@ struct NotchPanelView: View {
     @AppStorage(SettingsKey.contentFontSize) private var contentFontSize = SettingsDefaults.contentFontSize
     @AppStorage(SettingsKey.showAgentDetails) private var showAgentDetails = SettingsDefaults.showAgentDetails
     @AppStorage(SettingsKey.smartSuppress) private var smartSuppress = SettingsDefaults.smartSuppress
+    @AppStorage(SettingsKey.hideWhenNoSession) private var hideWhenNoSession = SettingsDefaults.hideWhenNoSession
     @AppStorage(SettingsKey.showToolStatus) private var showToolStatus = SettingsDefaults.showToolStatus
     @AppStorage(SettingsKey.collapsedWidthScale) private var collapsedWidthScale = SettingsDefaults.collapsedWidthScale
     @AppStorage(SettingsKey.hapticOnHover) private var hapticOnHover = SettingsDefaults.hapticOnHover
@@ -119,9 +120,9 @@ struct NotchPanelView: View {
     /// First launch / no-session state should still render a visible marker so the app
     /// doesn't disappear completely behind the physical notch.
     private var showIdleIndicator: Bool {
-        false
+        !isActive && !hideWhenNoSession
     }
-    /// Whether the bar content should be visible (respects hideWhenNoSession)
+    /// Whether an active-session bar should be visible.
     private var showBar: Bool {
         NotchMonitorVisibility.shouldShow(trackedSessionCount: appState.totalSessionCount)
     }
