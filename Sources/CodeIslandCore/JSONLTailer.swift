@@ -546,6 +546,10 @@ public final class JSONLTailer: @unchecked Sendable {
                             if hasExactValue(ptr, at: valueStart, total: total, expect: assistantBytes) {
                                 return .assistant
                             }
+                        case 0x50:  // 'P'
+                            if hasExactValue(ptr, at: valueStart, total: total, expect: plannerResponseBytes) {
+                                return .assistant
+                            }
                         case 0x6d:  // 'm'
                             if hasExactValue(ptr, at: valueStart, total: total, expect: ompMessageBytes) {
                                 return .ompMessage
