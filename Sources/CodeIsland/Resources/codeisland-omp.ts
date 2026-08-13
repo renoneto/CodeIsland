@@ -62,7 +62,7 @@ function sendToSocket(payload: object): Promise<void> {
     resolve();
   };
   let serialized: string;
-  do {
+  try {
     serialized = JSON.stringify(payload);
   } catch {
     finish();
