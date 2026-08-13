@@ -68,6 +68,8 @@ final class AppState {
     var activeSessionId: String?
     var permissionQueue: [PermissionRequest] = []
     var questionQueue: [QuestionRequest] = []
+    @ObservationIgnored
+    private var endedOmpSessionIds: Set<String> = []
 
     @ObservationIgnored
     private(set) var recentHookEvents: [DiagnosticHookEvent] = []
@@ -1139,6 +1141,13 @@ final class AppState {
         let isInitialOmpSessionStart = source == "omp" && normalizedEventName == "SessionStart"
         if sessions[sessionId] == nil, !isInitialOmpSessionStart {
             sessions[sessionId] = SessionSnapshot()
+        }
+
+        if source == "omp", endedOmpSessionIds.contains(sessionId) {
+            return
+        }
+        if source == "omp", normalizedEventName == "SessionEnd" {
+            endedOmpSessionIds.insert(sessionId)
         }
 
         let prevStatus = sessions[sessionId]?.status
@@ -2607,12 +2616,16 @@ final class AppState {
             session.providerSessionId = providerSessionId
             mutated = true
         }
-        if session.status != info.status {
-            session.status = info.status
+        if session.cwd != info.cwd {
+            session.cwd = info.cwd
             mutated = true
         }
-        if session.lastActivity != info.modifiedAt {
-            session.lastActivity = info.modifiedAt
+        if session.model != info.model {
+            session.model = info.model
+            mutated = true
+        }
+        if let path = info.transcriptPath, session.transcriptPath != path {
+            session.transcriptPath = path
             mutated = true
         }
         if mutated {
@@ -2635,6 +2648,13 @@ final class AppState {
             // has a known-good alive PID that differs from discovery, we trust the existing
             // one for both cliPid and monitor to avoid cross-session contamination.
             if sessions[info.sessionId] != nil {
+                if info.source == "omp" {
+                    if mergeOmpDiscoveryMetadata(sessionId: info.sessionId, from: info) {
+                        didMutate = true
+                    }
+                    attachTranscriptTailerIfNeeded(sessionId: info.sessionId)
+                    continue
+                }
                 if let pid = info.pid, pid > 0 {
                     let existingPid = sessions[info.sessionId]?.cliPid ?? 0
                     let existingProcess = resolvedSessionProcessIdentity(for: info.sessionId)
@@ -2649,9 +2669,6 @@ final class AppState {
                         }
                     }
                 }
-                if mergeOmpDiscoveryMetadata(sessionId: info.sessionId, from: info) {
-                    didMutate = true
-                }
                 if backfillSessionMessages(sessionId: info.sessionId, from: info) {
                     didMutate = true
                 }
@@ -2663,11 +2680,14 @@ final class AppState {
                     sessions[info.sessionId]?.transcriptPath = path
                     didMutate = true
                 }
-                attachTranscriptTailerIfNeeded(sessionId: info.sessionId)
                 if info.source != "omp" {
                     tryMonitorSession(info.sessionId)
                     refreshProviderTitle(for: info.sessionId, providerSessionId: info.sessionId)
                 }
+                continue
+            }
+
+            if info.source == "omp", endedOmpSessionIds.contains(info.sessionId) {
                 continue
             }
 
@@ -3464,7 +3484,7 @@ final class AppState {
             let path = URL(fileURLWithPath: base).appendingPathComponent(relativePath).path
             let url = URL(fileURLWithPath: path)
             guard let modifiedAt = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
-                  now.timeIntervalSince(modifiedAt) <= 300,
+                  (0...300).contains(now.timeIntervalSince(modifiedAt)),
                   let snapshot = OmpTranscriptSnapshot.read(path: path, fileManager: fileManager)
             else {
                 continue

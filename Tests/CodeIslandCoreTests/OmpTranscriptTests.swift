@@ -26,7 +26,7 @@ final class OmpTranscriptTests: XCTestCase {
     func testReadIgnoresMalformedAndNonMessageRecords() throws {
         let path = try writeFixture("""
         not json
-        {"type":"session","id":"omp-id","cwd":"/tmp/project"}
+        {"type":"session","id":"019ff97e-ccb8-7000-a22f-d1a5791d3532","cwd":"/tmp/project"}
         {"type":"message","message":{"role":"tool","content":[{"type":"text","text":"do not show"}]}}
         {"type":"message","message":{"role":"assistant","content":[{"type":"toolCall","name":"bash"}]}}
         """)
@@ -37,6 +37,14 @@ final class OmpTranscriptTests: XCTestCase {
 
     func testReadReturnsNilWithoutSessionMetadata() throws {
         let path = try writeFixture("{\"type\":\"message\",\"message\":{\"role\":\"user\",\"content\":[]}}")
+        XCTAssertNil(OmpTranscriptSnapshot.read(path: path))
+    }
+
+    func testReadRejectsNonUUIDSessionID() throws {
+        let path = try writeFixture("""
+        {"type":"session","id":"not-a-uuid","cwd":"/tmp/project"}
+        """)
+
         XCTAssertNil(OmpTranscriptSnapshot.read(path: path))
     }
 

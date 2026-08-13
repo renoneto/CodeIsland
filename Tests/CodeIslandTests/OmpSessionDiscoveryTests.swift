@@ -8,10 +8,11 @@ final class OmpSessionDiscoveryTests: XCTestCase {
         let root = try makeOmpRoot()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
+        let sessionUUID = "019ff97e-ccb8-7000-a22f-d1a5791d3532"
         let file = try writeOmpSession(
             under: root,
             filename: "2026-08-12T12-00-00Z_abc.jsonl",
-            contents: validTranscript(id: "abc", cwd: "/tmp/project", title: "OMP task")
+            contents: validTranscript(id: sessionUUID, cwd: "/tmp/project", title: "OMP task")
         )
         try FileManager.default.setAttributes(
             [.modificationDate: Date(timeIntervalSince1970: 10_000)],
@@ -24,7 +25,7 @@ final class OmpSessionDiscoveryTests: XCTestCase {
             fileManager: .default
         )
 
-        XCTAssertEqual(found.map(\.sessionId), ["omp-abc"])
+        XCTAssertEqual(found.map(\.sessionId), ["omp-019ff97e-ccb8-7000-a22f-d1a5791d3532"])
         XCTAssertEqual(found.first?.source, "omp")
         XCTAssertEqual(found.first?.cwd, "/tmp/project")
         XCTAssertEqual(found.first?.sessionTitle, "OMP task")
@@ -58,6 +59,31 @@ final class OmpSessionDiscoveryTests: XCTestCase {
         )
 
         XCTAssertTrue(found.isEmpty)
+    }
+
+    func testFindActiveOmpSessionsSkipsFutureDatedTranscripts() throws {
+        let root = try makeOmpRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let file = try writeOmpSession(
+            under: root,
+            filename: "future.jsonl",
+            contents: validTranscript(
+                id: "019ff97e-ccb8-7000-a22f-d1a5791d3532",
+                cwd: "/tmp/future",
+                title: "Future task"
+            )
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 10_121)],
+            ofItemAtPath: file
+        )
+
+        XCTAssertTrue(AppState.findActiveOmpSessions(
+            base: root,
+            now: Date(timeIntervalSince1970: 10_120),
+            fileManager: .default
+        ).isEmpty)
     }
 
     func testOmpSessionsAreNotTerminalActivatable() {

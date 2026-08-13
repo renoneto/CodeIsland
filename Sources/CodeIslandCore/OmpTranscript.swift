@@ -28,6 +28,7 @@ public struct OmpTranscriptSnapshot: Sendable, Equatable {
             switch type {
             case "session":
                 guard let recordSessionId = nonEmptyString(record["id"]),
+                      UUID(uuidString: recordSessionId) != nil,
                       let recordCwd = nonEmptyString(record["cwd"]) else {
                     continue
                 }
