@@ -75,8 +75,13 @@ struct TerminalActivator {
         "com.anthropic.claudefordesktop": "Claude",
     ]
 
+    static func canActivate(session: SessionSnapshot) -> Bool {
+        guard session.source != "omp" else { return false }
+        return !session.isRemote
+    }
+
     static func activate(session: SessionSnapshot, sessionId: String? = nil) {
-        guard !session.isRemote else { return }
+        guard canActivate(session: session) else { return }
 
         // Native app by bundle ID (e.g. Codex APP vs Codex CLI). These are IDE-style
         // apps (Cursor, Trae, Qoder, Factory, …) that can hold several workspace

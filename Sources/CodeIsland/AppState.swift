@@ -729,6 +729,7 @@ final class AppState {
     /// Prefers the PID captured by the bridge (_ppid), falls back to source-aware process scans by CWD.
     private func tryMonitorSession(_ sessionId: String) {
         guard sessions[sessionId]?.isRemote != true else { return }
+        guard sessions[sessionId]?.source != "omp" else { return }
         let currentMonitor = processMonitors[sessionId]?.process
 
         // Primary: use PID from bridge (works for any CLI)
@@ -2442,6 +2443,9 @@ final class AppState {
         if ConfigInstaller.isEnabled(source: "cline") {
             discovered.append(contentsOf: findActiveClineSessions(candidatePids: candidatePids))
         }
+        if ConfigInstaller.isEnabled(source: "omp") {
+            discovered.append(contentsOf: findActiveOmpSessions())
+        }
         return discovered
     }
 
@@ -2459,6 +2463,7 @@ final class AppState {
             ("opencode", "\(home)/.local/share/opencode"),
             ("kimi", "\(home)/.kimi-code/sessions"),
             ("kimi", "\(home)/.kimi/sessions"),
+            ("omp", "\(home)/.omp/agent/sessions"),
         ]
         let fm = FileManager.default
         var roots = candidates.compactMap { source, path -> String? in
@@ -2586,6 +2591,35 @@ final class AppState {
         return mutated
     }
 
+    private func mergeOmpDiscoveryMetadata(sessionId: String, from info: DiscoveredSession) -> Bool {
+        guard info.source == "omp", var session = sessions[sessionId] else { return false }
+
+        var mutated = false
+        if let title = info.sessionTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !title.isEmpty,
+           session.sessionTitle != title {
+            session.sessionTitle = title
+            mutated = true
+        }
+        let providerSessionId = String(info.sessionId.dropFirst("omp-".count))
+        if session.providerSessionId != providerSessionId {
+            session.providerSessionId = providerSessionId
+            mutated = true
+        }
+        if session.status != info.status {
+            session.status = info.status
+            mutated = true
+        }
+        if session.lastActivity != info.modifiedAt {
+            session.lastActivity = info.modifiedAt
+            mutated = true
+        }
+        if mutated {
+            sessions[sessionId] = session
+        }
+        return mutated
+    }
+
     /// Merge discovered sessions into current state (skip already-known ones)
     private func integrateDiscovered(_ discovered: [DiscoveredSession]) {
         var didMutate = false
@@ -2614,6 +2648,9 @@ final class AppState {
                         }
                     }
                 }
+                if mergeOmpDiscoveryMetadata(sessionId: info.sessionId, from: info) {
+                    didMutate = true
+                }
                 if backfillSessionMessages(sessionId: info.sessionId, from: info) {
                     didMutate = true
                 }
@@ -2626,8 +2663,10 @@ final class AppState {
                     didMutate = true
                 }
                 attachTranscriptTailerIfNeeded(sessionId: info.sessionId)
-                tryMonitorSession(info.sessionId)
-                refreshProviderTitle(for: info.sessionId, providerSessionId: info.sessionId)
+                if info.source != "omp" {
+                    tryMonitorSession(info.sessionId)
+                    refreshProviderTitle(for: info.sessionId, providerSessionId: info.sessionId)
+                }
                 continue
             }
 
@@ -2682,9 +2721,14 @@ final class AppState {
                     sessions[existingKey]?.transcriptPath = path
                     didMutate = true
                 }
+                if mergeOmpDiscoveryMetadata(sessionId: existingKey, from: info) {
+                    didMutate = true
+                }
                 attachTranscriptTailerIfNeeded(sessionId: existingKey)
-                tryMonitorSession(existingKey)
-                refreshProviderTitle(for: existingKey, providerSessionId: info.sessionId)
+                if info.source != "omp" {
+                    tryMonitorSession(existingKey)
+                    refreshProviderTitle(for: existingKey, providerSessionId: info.sessionId)
+                }
                 continue
             }
 
@@ -2694,13 +2738,18 @@ final class AppState {
             session.ttyPath = info.tty
             session.recentMessages = info.recentMessages
             session.source = info.source
+            session.status = info.status
+            session.lastActivity = info.modifiedAt
+            session.sessionTitle = info.sessionTitle
             if let pid = info.pid, let process = Self.liveProcessIdentity(for: pid) {
                 session.cliPid = process.pid
                 session.cliStartTime = process.startTime
             } else {
                 session.cliPid = info.pid
             }
-            session.providerSessionId = SessionTitleStore.supports(provider: info.source) ? info.sessionId : nil
+            session.providerSessionId = info.source == "omp"
+                ? String(info.sessionId.dropFirst("omp-".count))
+                : SessionTitleStore.supports(provider: info.source) ? info.sessionId : nil
             if let last = info.recentMessages.last(where: { $0.isUser }) {
                 session.lastUserPrompt = last.text
             }
@@ -2709,12 +2758,11 @@ final class AppState {
             }
             session.transcriptPath = info.transcriptPath
             sessions[info.sessionId] = session
-            refreshProviderTitle(for: info.sessionId, providerSessionId: info.sessionId)
-            tryMonitorSession(info.sessionId)
+            if info.source != "omp" {
+                refreshProviderTitle(for: info.sessionId, providerSessionId: info.sessionId)
+                tryMonitorSession(info.sessionId)
+            }
             attachTranscriptTailerIfNeeded(sessionId: info.sessionId)
-            didMutate = true
-        }
-        if applyCodexSubsessionModeToKnownSessions() {
             didMutate = true
         }
         if applyCursorSubsessionModeToKnownSessions() {
@@ -3378,7 +3426,7 @@ final class AppState {
         }
     }
 
-    private struct DiscoveredSession {
+    struct DiscoveredSession {
         let sessionId: String
         let cwd: String
         let tty: String?
@@ -3387,6 +3435,8 @@ final class AppState {
         let modifiedAt: Date
         let recentMessages: [ChatMessage]
         var source: String = "claude"
+        var sessionTitle: String? = nil
+        var status: AgentStatus = .processing
         /// Absolute path to the JSONL transcript this session was discovered from.
         /// When non-nil and the session is still live, AppState registers a JSONLTailer
         /// so incremental assistant appends reach the UI without another full scan.
@@ -3395,6 +3445,47 @@ final class AppState {
         var subagentStatus: String? = nil
         var agentType: String? = nil
         var agentNickname: String? = nil
+    }
+
+    /// Discover recently modified OMP transcripts without resolving a terminal process.
+    nonisolated static func findActiveOmpSessions(
+        base: String = "\(FileManager.default.homeDirectoryForCurrentUser.path)/.omp/agent/sessions",
+        now: Date = Date(),
+        fileManager: FileManager = .default
+    ) -> [DiscoveredSession] {
+        guard let enumerator = fileManager.enumerator(atPath: base) else { return [] }
+
+        var discoveredById: [String: DiscoveredSession] = [:]
+        for case let relativePath as String in enumerator where relativePath.hasSuffix(".jsonl") {
+            let path = URL(fileURLWithPath: base).appendingPathComponent(relativePath).path
+            let url = URL(fileURLWithPath: path)
+            guard let modifiedAt = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+                  now.timeIntervalSince(modifiedAt) <= 300,
+                  let snapshot = OmpTranscriptSnapshot.read(path: path, fileManager: fileManager)
+            else {
+                continue
+            }
+
+            let sessionId = "omp-\(snapshot.sessionId)"
+            let discovered = DiscoveredSession(
+                sessionId: sessionId,
+                cwd: snapshot.cwd,
+                tty: nil,
+                model: snapshot.model,
+                pid: nil,
+                modifiedAt: modifiedAt,
+                recentMessages: snapshot.recentMessages,
+                source: "omp",
+                sessionTitle: snapshot.title,
+                transcriptPath: path
+            )
+            if let existing = discoveredById[sessionId], existing.modifiedAt >= modifiedAt {
+                continue
+            }
+            discoveredById[sessionId] = discovered
+        }
+
+        return discoveredById.values.sorted { $0.sessionId < $1.sessionId }
     }
 
     /// Find running `claude` processes, match to transcript files, extract recent messages
