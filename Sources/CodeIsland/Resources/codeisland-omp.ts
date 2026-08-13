@@ -53,15 +53,28 @@ function detectTty(): string | null {
   return null;
 }
 
-function sendToSocket(payload: object): void {
+function sendToSocket(payload: object): Promise<void> {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    resolve();
+  };
+
   try {
     const sock = connect({ path: SOCKET_PATH }, () => {
-      sock.write(JSON.stringify(payload));
-      sock.end();
+      sock.end(JSON.stringify(payload), finish);
     });
-    sock.on("error", () => {});
-    sock.setTimeout(3_000, () => sock.destroy());
-  } catch {}
+    sock.once("error", finish);
+    sock.setTimeout(3_000, () => {
+      sock.destroy();
+      finish();
+    });
+  } catch {
+    finish();
+  }
+  return promise;
 }
 
 function base(
@@ -109,18 +122,27 @@ function extractLastAssistantText(messages: readonly unknown[]): string {
 export default function codeislandExtension(pi: ExtensionAPI) {
   const tty = detectTty();
   const startedSessions = new Set<string>();
+  const outboundTails = new Map<string, Promise<void>>();
 
+  function enqueueEvent(sessionId: string, payload: object): void {
+    const previous = outboundTails.get(sessionId) ?? Promise.resolve();
+    const next = previous.then(() => sendToSocket(payload));
+    outboundTails.set(sessionId, next);
+    void next.finally(() => {
+      if (outboundTails.get(sessionId) === next) {
+        outboundTails.delete(sessionId);
+      }
+    });
+  }
   function ensureSessionStarted(sessionId: string, cwd: string): void {
     const sid = `omp-${sessionId}`;
     if (startedSessions.has(sid)) return;
 
     const sessionName = pi.getSessionName();
-    sendToSocket(
-      base(sessionId, cwd, {
-        hook_event_name: "SessionStart",
-        ...(sessionName ? { session_title: sessionName } : {}),
-      }, tty),
-    );
+    enqueueEvent(sid, base(sessionId, cwd, {
+      hook_event_name: "SessionStart",
+      ...(sessionName ? { session_title: sessionName } : {}),
+    }, tty));
     startedSessions.add(sid);
   }
 
@@ -130,14 +152,14 @@ export default function codeislandExtension(pi: ExtensionAPI) {
 
   pi.on("session_shutdown", (_event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
-    sendToSocket(base(sessionId, ctx.cwd, { hook_event_name: "SessionEnd" }, tty));
+    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "SessionEnd" }, tty));
     startedSessions.delete(`omp-${sessionId}`);
   });
 
   pi.on("before_agent_start", (event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
     ensureSessionStarted(sessionId, ctx.cwd);
-    sendToSocket(base(sessionId, ctx.cwd, {
+    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, {
       hook_event_name: "UserPromptSubmit",
       prompt: event.prompt ?? "",
     }, tty));
@@ -147,7 +169,7 @@ export default function codeislandExtension(pi: ExtensionAPI) {
     const sessionId = ctx.sessionManager.getSessionId();
     ensureSessionStarted(sessionId, ctx.cwd);
     const sessionName = pi.getSessionName();
-    sendToSocket(base(sessionId, ctx.cwd, {
+    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, {
       hook_event_name: "Stop",
       last_assistant_message: extractLastAssistantText(event.messages) || undefined,
       ...(sessionName ? { session_title: sessionName } : {}),
@@ -164,7 +186,7 @@ export default function codeislandExtension(pi: ExtensionAPI) {
     if ((event.toolName === "edit" || event.toolName === "write") && typeof event.input.path === "string") {
       toolInput.file_path = event.input.path;
     }
-    sendToSocket(base(sessionId, ctx.cwd, {
+    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, {
       hook_event_name: "PreToolUse",
       tool_name: event.toolName.charAt(0).toUpperCase() + event.toolName.slice(1),
       tool_input: toolInput,
@@ -174,18 +196,18 @@ export default function codeislandExtension(pi: ExtensionAPI) {
   pi.on("tool_result", (_event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
     ensureSessionStarted(sessionId, ctx.cwd);
-    sendToSocket(base(sessionId, ctx.cwd, { hook_event_name: "PostToolUse" }, tty));
+    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "PostToolUse" }, tty));
   });
 
   pi.on("session_before_compact", (_event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
     ensureSessionStarted(sessionId, ctx.cwd);
-    sendToSocket(base(sessionId, ctx.cwd, { hook_event_name: "PreCompact" }, tty));
+    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "PreCompact" }, tty));
   });
 
   pi.on("session_compact", (_event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
     ensureSessionStarted(sessionId, ctx.cwd);
-    sendToSocket(base(sessionId, ctx.cwd, { hook_event_name: "PostCompact" }, tty));
+    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "PostCompact" }, tty));
   });
 }

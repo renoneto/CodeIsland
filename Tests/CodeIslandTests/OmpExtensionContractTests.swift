@@ -18,4 +18,16 @@ final class OmpExtensionContractTests: XCTestCase {
         XCTAssertFalse(source.contains("forwardAskToCodeIsland"))
         XCTAssertFalse(source.contains("BRIDGE_PATH"))
     }
+
+    func testOmpExtensionQueuesLifecycleTelemetryBeforeLaterEvents() throws {
+        let source = try XCTUnwrap(packagedOmpExtensionSource())
+
+        XCTAssertTrue(source.contains("const outboundTails = new Map<string, Promise<void>>();"))
+        XCTAssertTrue(source.contains("function enqueueEvent(sessionId: string, payload: object): void"))
+        XCTAssertTrue(source.contains("const previous = outboundTails.get(sessionId) ?? Promise.resolve();"))
+        XCTAssertTrue(source.contains("const next = previous.then(() => sendToSocket(payload));"))
+        XCTAssertTrue(source.contains("enqueueEvent(sid, base(sessionId, cwd, {"))
+        XCTAssertTrue(source.contains("enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, {"))
+        XCTAssertFalse(source.contains("sendToSocket(base(sessionId, ctx.cwd"))
+    }
 }
