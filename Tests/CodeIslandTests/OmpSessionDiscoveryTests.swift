@@ -2,6 +2,7 @@ import XCTest
 @testable import CodeIsland
 import CodeIslandCore
 
+@MainActor
 final class OmpSessionDiscoveryTests: XCTestCase {
     func testFindActiveOmpSessionsNamespacesMetadataAndUsesRecentFiles() throws {
         let root = try makeOmpRoot()
@@ -64,6 +65,39 @@ final class OmpSessionDiscoveryTests: XCTestCase {
         session.source = "omp"
 
         XCTAssertFalse(TerminalActivator.canActivate(session: session))
+    }
+
+    func testIntegratingOmpSessionsKeepsConcurrentSameCwdCards() {
+        let appState = AppState()
+        let now = Date(timeIntervalSince1970: 10_000)
+        appState.integrateDiscovered([
+            AppState.DiscoveredSession(
+                sessionId: "omp-alpha",
+                cwd: "/tmp/project",
+                tty: nil,
+                model: nil,
+                pid: nil,
+                modifiedAt: now,
+                recentMessages: [],
+                source: "omp",
+                sessionTitle: "Alpha"
+            ),
+            AppState.DiscoveredSession(
+                sessionId: "omp-beta",
+                cwd: "/tmp/project",
+                tty: nil,
+                model: nil,
+                pid: nil,
+                modifiedAt: now,
+                recentMessages: [],
+                source: "omp",
+                sessionTitle: "Beta"
+            )
+        ])
+
+        XCTAssertEqual(appState.sessions.keys.sorted(), ["omp-alpha", "omp-beta"])
+        XCTAssertEqual(appState.sessions["omp-alpha"]?.sessionTitle, "Alpha")
+        XCTAssertEqual(appState.sessions["omp-beta"]?.sessionTitle, "Beta")
     }
 
     private func makeOmpRoot() throws -> String {

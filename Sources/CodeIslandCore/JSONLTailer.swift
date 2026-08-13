@@ -348,6 +348,20 @@ public final class JSONLTailer: @unchecked Sendable {
                     delta.lastAssistantMessage = trimmed
                 }
             }
+        case "message":
+            guard let ompMessage = json["message"] as? [String: Any],
+                  let role = ompMessage["role"] as? String,
+                  let text = extractText(from: ompMessage["content"]) else {
+                return
+            }
+            switch role {
+            case "user":
+                delta.lastUserPrompt = text
+            case "assistant":
+                delta.lastAssistantMessage = text
+            default:
+                break
+            }
         case "event_msg":
             delta.hasActivity = true
             guard let payload = json["payload"] as? [String: Any],
@@ -474,24 +488,24 @@ public final class JSONLTailer: @unchecked Sendable {
         return ""
     }
 
-    /// Types we care about for the panel: `"user"` and `"assistant"`. Anything
-    /// else — including unknown types and absent-type lines — can be skipped
-    /// without bothering the JSON parser. `cursorRole` marks lines that carry
-    /// no interesting `type` value but do contain a `"role":"user|assistant"`
-    /// marker (Cursor's transcript shape) and therefore still deserve a parse.
+    /// Types we care about for the panel: `"user"`, `"assistant"`, OMP's
+    /// `"message"`, and Codex activity rows. Anything else — including unknown
+    /// types and absent-type lines — can be skipped without bothering the JSON
+    /// parser. `cursorRole` marks lines that carry no interesting `type` value
+    /// but do contain a `"role":"user|assistant"` marker (Cursor's transcript
+    /// shape) and therefore still deserve a parse.
     enum QuickTypeKind: Equatable {
         case user
         case assistant
+        case ompMessage
         case codexEvent
         case cursorRole
         case irrelevant
     }
 
-    /// Byte-scan the line for the first `"type":"` occurrence and peek at the
-    /// character that follows the opening quote. A single pass that gives up
-    /// as soon as it sees something that isn't `u`, `a`, or an escape. Returns
-    /// `.irrelevant` when neither `"user"` nor `"assistant"` appears as a
-    /// `type` value, letting the caller skip the JSON parser entirely.
+    /// Byte-scan the line for an interesting `"type":"..."` occurrence. The
+    /// fast path accepts only supported message and activity records, skipping
+    /// unrelated transcript rows before JSON parsing.
     ///
     /// Limitations: does not tolerate whitespace between the colon and the
     /// opening quote (e.g. `"type" : "user"`). Claude's JSONL writer never
@@ -532,9 +546,9 @@ public final class JSONLTailer: @unchecked Sendable {
                             if hasExactValue(ptr, at: valueStart, total: total, expect: assistantBytes) {
                                 return .assistant
                             }
-                        case 0x50:  // 'P'
-                            if hasExactValue(ptr, at: valueStart, total: total, expect: plannerResponseBytes) {
-                                return .assistant
+                        case 0x6d:  // 'm'
+                            if hasExactValue(ptr, at: valueStart, total: total, expect: ompMessageBytes) {
+                                return .ompMessage
                             }
                         case 0x65:  // 'e'
                             if hasExactValue(ptr, at: valueStart, total: total, expect: eventMsgBytes) {
@@ -589,6 +603,7 @@ public final class JSONLTailer: @unchecked Sendable {
     private static let plannerResponseBytes: [UInt8] = Array(#"PLANNER_RESPONSE""#.utf8)
 
     private static let eventMsgBytes: [UInt8] = Array(#"event_msg""#.utf8)
+    private static let ompMessageBytes: [UInt8] = Array(#"message""#.utf8)
 
     private static func hasExactValue(
         _ ptr: UnsafePointer<UInt8>,

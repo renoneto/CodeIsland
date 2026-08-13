@@ -201,6 +201,33 @@ final class JSONLTailerTests: XCTestCase {
         tailer.detach(sessionId: "s1")
     }
 
+    func testAttachAndDetectAppendedOmpMessage() throws {
+        let url = temporaryFileURL()
+        try Data("".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let expectation = self.expectation(description: "OMP delta delivered")
+        let captured = LockedValue<ConversationTailDelta?>(nil)
+        let tailer = JSONLTailer(
+            queue: DispatchQueue(label: "tailer-test"),
+            onDelta: { delta in
+                captured.set(delta)
+                expectation.fulfill()
+            }
+        )
+        tailer.attach(sessionId: "omp-abc", filePath: url.path)
+        Thread.sleep(forTimeInterval: 0.15)
+
+        try appendToFile(url: url, content: ompMessageLine(role: "assistant", text: "OMP reply") + "\n")
+
+        wait(for: [expectation], timeout: 2)
+        XCTAssertEqual(captured.value?.sessionId, "omp-abc")
+        XCTAssertEqual(captured.value?.lastAssistantMessage, "OMP reply")
+        XCTAssertNil(captured.value?.lastUserPrompt)
+
+        tailer.detach(sessionId: "omp-abc")
+    }
+
     func testAttachIgnoresPreexistingContentByDefault() throws {
         let url = temporaryFileURL()
         let pre = assistantLine(text: "already written") + "\n"
@@ -386,6 +413,20 @@ final class JSONLTailerTests: XCTestCase {
             ]
         ]
         return jsonString(payload)
+    }
+
+    private func ompMessageLine(role: String, text: String) -> String {
+        jsonString([
+            "type": "message",
+            "message": [
+                "role": role,
+                "content": [
+                    ["type": "thinking", "text": "internal reasoning"],
+                    ["type": "tool_use", "name": "Read"],
+                    ["type": "text", "text": text]
+                ]
+            ]
+        ])
     }
 
     private func jsonString(_ obj: [String: Any]) -> String {

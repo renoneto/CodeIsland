@@ -1101,8 +1101,7 @@ private struct ApprovalBar: View {
             return
         }
 
-        // Remote sessions have no local terminal
-        guard !session.isRemote else { return }
+        guard TerminalActivator.canActivate(session: session) else { return }
 
         TerminalActivator.activate(session: session, sessionId: sessionId)
 
@@ -2425,6 +2424,7 @@ private struct SessionCard: View {
     }
 
     private func handleSessionClick() {
+        guard TerminalActivator.canActivate(session: session) else { return }
         TerminalActivator.activate(session: session, sessionId: sessionId)
 
         guard autoCollapseAfterSessionJump, !session.isRemote else { return }

@@ -2621,7 +2621,7 @@ final class AppState {
     }
 
     /// Merge discovered sessions into current state (skip already-known ones)
-    private func integrateDiscovered(_ discovered: [DiscoveredSession]) {
+    func integrateDiscovered(_ discovered: [DiscoveredSession]) {
         var didMutate = false
         for info in discovered {
             if routeDiscoveredSubsessionIfNeeded(info) {
@@ -2677,7 +2677,7 @@ final class AppState {
             // sessions in the same repo aren't incorrectly merged.
             // Never merge a discovery (CLI) session with an existing native app session —
             // they're fundamentally different even if they share source + cwd.
-            let duplicateKey = sessions.first(where: { (_, existing) in
+            let duplicateKey: String? = info.source == "omp" ? nil : sessions.first(where: { (_, existing) in
                 guard existing.source == info.source,
                       existing.cwd != nil, existing.cwd == info.cwd else { return false }
                 // Don't merge CLI discovery into a stale native app session whose app has quit —
@@ -2763,6 +2763,9 @@ final class AppState {
                 tryMonitorSession(info.sessionId)
             }
             attachTranscriptTailerIfNeeded(sessionId: info.sessionId)
+            didMutate = true
+        }
+        if applyCodexSubsessionModeToKnownSessions() {
             didMutate = true
         }
         if applyCursorSubsessionModeToKnownSessions() {

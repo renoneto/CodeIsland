@@ -96,7 +96,7 @@ final class AppStateCodexSubsessionTests: XCTestCase {
         appState.sessions["parent"] = parent
         appState.sessions["child"] = child
 
-        XCTAssertTrue(appState.applyCodexSubsessionModeToKnownSessions())
+        appState.integrateDiscovered([])
 
         XCTAssertNil(appState.sessions["child"])
         XCTAssertEqual(appState.sessions["parent"]?.subagents["child-thread"]?.agentType, "worker")
