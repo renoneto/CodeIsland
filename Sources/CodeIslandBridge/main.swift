@@ -367,6 +367,19 @@ if resolvedTrackedPID != immediateParentPID {
 if effectiveSource == "cline" {
     json["_ppid"] = 0
 }
+// OMP sessions are discovered from local transcripts only. Drop synthetic
+// control events before session fallback, socket connection, or stdout response.
+let eventName = json["hook_event_name"] as? String ?? ""
+let normalizedEventName = EventNormalizer.normalize(eventName)
+let isQuestion = normalizedEventName == "Notification"
+    && json["question"] as? String != nil
+if OmpControlEventPolicy.shouldDrop(
+    source: effectiveSource ?? (json["_source"] as? String),
+    normalizedEventName: normalizedEventName,
+    hasQuestion: isQuestion
+) {
+    exit(0)
+}
 
 // Validate: must have non-empty session_id
 if json["session_id"] == nil,
@@ -390,17 +403,12 @@ guard let sessionId = json["session_id"] as? String, !sessionId.isEmpty else {
     exit(0)
 }
 
-// Event type detection
-let eventName = json["hook_event_name"] as? String ?? ""
-let normalizedEventName = EventNormalizer.normalize(eventName)
 // Gemini CLI (--source gemini) and Google Antigravity (--source google-antigravity) both
 // send PreToolUse in the JSON payload; treat it as a blocking permission event for both.
 let isGeminiBasedSource = sourceTag == "google-antigravity" || sourceTag == "gemini"
     || effectiveSource == "google-antigravity" || effectiveSource == "gemini"
 let isPermission = normalizedEventName == "PermissionRequest"
     || (isGeminiBasedSource && normalizedEventName == "PreToolUse")
-let isQuestion = (normalizedEventName == "Notification" || eventName == "afterAgentThought")
-    && json["question"] as? String != nil
 let isBlocking = isPermission || isQuestion
 
 debugLog("event=\(eventName) normalized=\(normalizedEventName) session=\(sessionId) permission=\(isPermission) question=\(isQuestion)")

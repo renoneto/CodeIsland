@@ -281,17 +281,20 @@ class HookServer {
     static func routeKind(for event: HookEvent) -> RouteKind {
         let normalizedEventName = EventNormalizer.normalize(event.eventName)
         let source = SessionSnapshot.normalizedSupportedSource(event.rawJSON["_source"] as? String)
+        let hasQuestion = QuestionPayload.from(event: event) != nil
         // OMP is discovered from local transcripts only; it must never enter
         // CodeIsland's provider-control flows.
-        if source == "omp",
-           (normalizedEventName == "PermissionRequest"
-                || (normalizedEventName == "Notification" && QuestionPayload.from(event: event) != nil)) {
+        if OmpControlEventPolicy.shouldDrop(
+            source: source,
+            normalizedEventName: normalizedEventName,
+            hasQuestion: hasQuestion
+        ) {
             return .ignored
         }
         if normalizedEventName == "PermissionRequest" || (source == "gemini" && normalizedEventName == "PreToolUse") {
             return .permission
         }
-        if normalizedEventName == "Notification", QuestionPayload.from(event: event) != nil {
+        if normalizedEventName == "Notification", hasQuestion {
             return .question
         }
         return .event
