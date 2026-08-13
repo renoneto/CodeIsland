@@ -877,6 +877,12 @@ struct ConfigInstaller {
             if !installExternalHooks(cli: cli, fm: fm) { ok = false }
         }
 
+        if isEnabled(source: "omp"),
+           fm.fileExists(atPath: ompAgentDir),
+           !installOmpExtension(fm: fm) {
+            ok = false
+        }
+
         // Codex requires hooks = true in config.toml
         if isEnabled(source: "codex"),
            fm.fileExists(atPath: codexHome()) {
@@ -923,15 +929,21 @@ struct ConfigInstaller {
         return isHooksInstalled(for: codex, fm: fm)
     }
 
-    /// Check if a specific CLI's hooks are installed
+    /// Check if a specific CLI's hooks or extension are installed.
     static func isInstalled(source: String) -> Bool {
+        if source == "omp" {
+            return isOmpExtensionInstalled(fm: .default)
+        }
         guard source == "codex",
               let cli = managedCLIs.first else { return false }
-        return isHooksInstalled(for: cli, fm: FileManager.default)
+        return isHooksInstalled(for: cli, fm: .default)
     }
 
     /// Check if CLI directory exists (tool is installed on this machine)
     static func cliExists(source: String) -> Bool {
+        if source == "omp" {
+            return FileManager.default.fileExists(atPath: ompAgentDir)
+        }
         guard source == "codex",
               let cli = managedCLIs.first else { return false }
         return FileManager.default.fileExists(atPath: cli.dirPath)
@@ -942,7 +954,7 @@ struct ConfigInstaller {
 
     /// Whether a CLI is enabled by user (UserDefaults). Default: true.
     static func isEnabled(source: String) -> Bool {
-        guard ["codex", "claude", "gemini"].contains(source) else { return false }
+        guard ["codex", "claude", "gemini", "omp"].contains(source) else { return false }
         let key = "cli_enabled_\(source)"
         if UserDefaults.standard.object(forKey: key) == nil { return true }
         return UserDefaults.standard.bool(forKey: key)
@@ -951,9 +963,16 @@ struct ConfigInstaller {
     /// Toggle a single CLI on/off: installs or uninstalls its hooks.
     @discardableResult
     static func setEnabled(source: String, enabled: Bool) -> Bool {
-        guard ["codex", "claude", "gemini"].contains(source) else { return false }
+        guard ["codex", "claude", "gemini", "omp"].contains(source) else { return false }
         UserDefaults.standard.set(enabled, forKey: "cli_enabled_\(source)")
         let fm = FileManager.default
+        if source == "omp" {
+            if enabled {
+                return installOmpExtension(fm: fm) && isOmpExtensionInstalled(fm: fm)
+            }
+            uninstallOmpExtension(fm: fm)
+            return true
+        }
         if enabled {
             installHookScript(fm: fm)
             installBridgeBinary(fm: fm)
@@ -2733,6 +2752,8 @@ struct ConfigInstaller {
 
     /// Current pi extension version — bump when codeisland-pi.ts changes.
     private static let piExtensionVersion = "v2"
+    /// Current OMP extension version — bump when codeisland-omp.ts changes.
+    private static let ompExtensionVersion = "v3"
 
     private static func piExtensionSource() -> String? {
         if let url = Bundle.appModule.url(forResource: "codeisland-pi", withExtension: "ts", subdirectory: "Resources"),
@@ -2806,14 +2827,24 @@ struct ConfigInstaller {
         ompExtensionPath: String = ompExtensionPath,
         fm: FileManager
     ) {
-        uninstallPiExtension(piExtensionPath: ompExtensionPath, fm: fm)
+        guard fm.fileExists(atPath: ompExtensionPath),
+              let data = fm.contents(atPath: ompExtensionPath),
+              let content = String(data: data, encoding: .utf8),
+              content.contains("CodeIsland OMP extension")
+        else { return }
+        try? fm.removeItem(atPath: ompExtensionPath)
     }
 
     static func isOmpExtensionInstalled(
         ompExtensionPath: String = ompExtensionPath,
         fm: FileManager
     ) -> Bool {
-        isPiExtensionInstalled(piExtensionPath: ompExtensionPath, fm: fm)
+        guard fm.fileExists(atPath: ompExtensionPath),
+              let data = fm.contents(atPath: ompExtensionPath),
+              let content = String(data: data, encoding: .utf8)
+        else { return false }
+        return content.contains("CodeIsland OMP extension")
+            && content.contains("// version: \(ompExtensionVersion)")
     }
 
     // MARK: - OpenClaw plugin (#235)
