@@ -61,10 +61,17 @@ function sendToSocket(payload: object): Promise<void> {
     finished = true;
     resolve();
   };
+  let serialized: string;
+  do {
+    serialized = JSON.stringify(payload);
+  } catch {
+    finish();
+    return promise;
+  }
 
   try {
     const sock = connect({ path: SOCKET_PATH }, () => {
-      sock.end(JSON.stringify(payload), finish);
+      sock.end(serialized, finish);
     });
     sock.once("error", finish);
     sock.setTimeout(3_000, () => {
@@ -125,7 +132,7 @@ export default function codeislandExtension(pi: ExtensionAPI) {
   const outboundTails = new Map<string, Promise<void>>();
 
   function enqueueEvent(sessionId: string, payload: object): void {
-    const previous = outboundTails.get(sessionId) ?? Promise.resolve();
+    const previous = outboundTails.get(sessionId)?.catch(() => {}) ?? Promise.resolve();
     const next = previous.then(() => sendToSocket(payload));
     outboundTails.set(sessionId, next);
     void next.finally(() => {

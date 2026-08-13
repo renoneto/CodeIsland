@@ -618,8 +618,8 @@ public func reduceEvent(
     let eventName = EventNormalizer.normalize(event.eventName)
     var effects: [SideEffect] = []
 
-    // Ensure session exists
-    if sessions[sessionId] == nil {
+    let sessionExistedBeforeEvent = sessions[sessionId] != nil
+    if !sessionExistedBeforeEvent {
         sessions[sessionId] = SessionSnapshot()
     }
 
@@ -864,8 +864,12 @@ public func reduceEvent(
             effects.append(.enqueueCompletion(sessionId: sessionId))
         }
     case "SessionStart":
-        effects.append(.stopMonitor(sessionId: sessionId))
-        sessions[sessionId] = SessionSnapshot(startTime: Date())
+        let isLateOmpSessionStart = event.rawJSON["_source"] as? String == "omp"
+            && sessionExistedBeforeEvent
+        if !isLateOmpSessionStart {
+            effects.append(.stopMonitor(sessionId: sessionId))
+            sessions[sessionId] = SessionSnapshot(startTime: Date())
+        }
         // Re-apply metadata from this event (common extraction above wrote to the old session)
         if let cwd = event.rawJSON["cwd"] as? String, !cwd.isEmpty { sessions[sessionId]?.cwd = cwd }
         if let model = event.rawJSON["model"] as? String, !model.isEmpty { sessions[sessionId]?.model = model }

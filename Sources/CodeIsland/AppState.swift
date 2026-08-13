@@ -1135,11 +1135,12 @@ final class AppState {
             return
         }
 
-        if sessions[sessionId] == nil {
+        let normalizedEventName = EventNormalizer.normalize(event.eventName)
+        let isInitialOmpSessionStart = source == "omp" && normalizedEventName == "SessionStart"
+        if sessions[sessionId] == nil, !isInitialOmpSessionStart {
             sessions[sessionId] = SessionSnapshot()
         }
 
-        let normalizedEventName = EventNormalizer.normalize(event.eventName)
         let prevStatus = sessions[sessionId]?.status
         let wasWaiting = prevStatus == .waitingApproval || prevStatus == .waitingQuestion
         let cwdBeforeReduce = sessions[sessionId]?.cwd

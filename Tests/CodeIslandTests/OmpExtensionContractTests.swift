@@ -24,8 +24,11 @@ final class OmpExtensionContractTests: XCTestCase {
 
         XCTAssertTrue(source.contains("const outboundTails = new Map<string, Promise<void>>();"))
         XCTAssertTrue(source.contains("function enqueueEvent(sessionId: string, payload: object): void"))
-        XCTAssertTrue(source.contains("const previous = outboundTails.get(sessionId) ?? Promise.resolve();"))
+        XCTAssertTrue(source.contains("const previous = outboundTails.get(sessionId)?.catch(() => {}) ?? Promise.resolve();"))
         XCTAssertTrue(source.contains("const next = previous.then(() => sendToSocket(payload));"))
+        XCTAssertTrue(source.contains("let serialized: string;"))
+        XCTAssertTrue(source.contains("serialized = JSON.stringify(payload);"))
+        XCTAssertTrue(source.contains("catch {\n    finish();\n    return promise;\n  }"))
         XCTAssertTrue(source.contains("enqueueEvent(sid, base(sessionId, cwd, {"))
         XCTAssertTrue(source.contains("enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, {"))
         XCTAssertFalse(source.contains("sendToSocket(base(sessionId, ctx.cwd"))
