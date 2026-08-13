@@ -59,6 +59,13 @@ final class AppStateOmpSessionStartTests: XCTestCase {
         appState.handleEvent(try event("SessionStart", sessionId: sessionId))
         XCTAssertNil(appState.sessions[sessionId])
 
+        appState.handleEvent(try event("PreToolUse", sessionId: sessionId))
+        appState.handleEvent(try event(
+            "UserPromptSubmit",
+            sessionId: sessionId,
+            extra: ["prompt": "delayed"]
+        ))
+        XCTAssertNil(appState.sessions[sessionId])
         appState.integrateDiscovered([discoveredSession(sessionId: sessionId)])
 
         XCTAssertNil(appState.sessions[sessionId])

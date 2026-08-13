@@ -1129,25 +1129,25 @@ final class AppState {
         }
 
         let sessionId = event.sessionId ?? "default"
-
-        // Skip Codex APP internal sessions (title generation, etc.) — they have no transcript
-        if (event.rawJSON["_source"] as? String) == "codex"
-            && sessions[sessionId] == nil
-            && event.rawJSON["transcript_path"] is NSNull {
-            return
-        }
-
         let normalizedEventName = EventNormalizer.normalize(event.eventName)
-        let isInitialOmpSessionStart = source == "omp" && normalizedEventName == "SessionStart"
-        if sessions[sessionId] == nil, !isInitialOmpSessionStart {
-            sessions[sessionId] = SessionSnapshot()
-        }
 
         if source == "omp", endedOmpSessionIds.contains(sessionId) {
             return
         }
         if source == "omp", normalizedEventName == "SessionEnd" {
             endedOmpSessionIds.insert(sessionId)
+        }
+
+        // Skip Codex APP internal sessions (title generation, etc.) — they have no transcript
+        if source == "codex"
+            && sessions[sessionId] == nil
+            && event.rawJSON["transcript_path"] is NSNull {
+            return
+        }
+
+        let isInitialOmpSessionStart = source == "omp" && normalizedEventName == "SessionStart"
+        if sessions[sessionId] == nil, !isInitialOmpSessionStart {
+            sessions[sessionId] = SessionSnapshot()
         }
 
         let prevStatus = sessions[sessionId]?.status
