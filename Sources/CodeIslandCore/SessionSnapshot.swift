@@ -9,7 +9,7 @@ public enum SessionTitleSource: String, Sendable, Codable {
 public struct SessionSnapshot: Sendable {
     public static let customCLIConfigsKey = "custom_cli_configs_v1"
 
-    public static let supportedSources: Set<String> = ["codex", "claude", "gemini"]
+    public static let supportedSources: Set<String> = ["codex", "claude", "gemini", "omp"]
 
     public static let ideCompletionSources: Set<String> = []
 
@@ -96,7 +96,7 @@ public struct SessionSnapshot: Sendable {
 
     public static func normalizedSupportedSource(_ source: String?) -> String? {
         switch source?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "codex", "claude", "gemini":
+        case "codex", "claude", "gemini", "omp":
             return source?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         default:
             return nil
