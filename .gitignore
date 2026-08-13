@@ -1,6 +1,7 @@
 # Build artifacts
 .build/
 .swiftpm/
+.worktrees/
 
 # Superpowers artifacts
 .superpowers/
