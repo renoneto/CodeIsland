@@ -11,6 +11,7 @@ class HookServer {
         case permission
         case question
         case event
+        case ignored
     }
 
     private let appState: AppState
@@ -280,6 +281,13 @@ class HookServer {
     static func routeKind(for event: HookEvent) -> RouteKind {
         let normalizedEventName = EventNormalizer.normalize(event.eventName)
         let source = SessionSnapshot.normalizedSupportedSource(event.rawJSON["_source"] as? String)
+        // OMP is discovered from local transcripts only; it must never enter
+        // CodeIsland's provider-control flows.
+        if source == "omp",
+           (normalizedEventName == "PermissionRequest"
+                || (normalizedEventName == "Notification" && QuestionPayload.from(event: event) != nil)) {
+            return .ignored
+        }
         if normalizedEventName == "PermissionRequest" || (source == "gemini" && normalizedEventName == "PreToolUse") {
             return .permission
         }
@@ -548,6 +556,8 @@ class HookServer {
 
         case .event:
             appState.handleEvent(event)
+            sendResponse(connection: connection, data: Data("{}".utf8))
+        case .ignored:
             sendResponse(connection: connection, data: Data("{}".utf8))
         }
     }
