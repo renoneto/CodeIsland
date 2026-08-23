@@ -1785,7 +1785,7 @@ private struct SessionListView: View {
         let groups = groupedSessions
         let totalSessionCount = groups.reduce(0) { $0 + $1.ids.count }
         let needsScroll = onlySessionId == nil && totalSessionCount > maxVisibleSessions
-        let content = VStack(spacing: 6) {
+        let content = VStack(spacing: 4) {
             ForEach(groups, id: \.header) { group in
                 if !group.header.isEmpty {
                     HStack(spacing: 6) {
@@ -1800,8 +1800,8 @@ private struct SessionListView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 12)
-                    .padding(.top, 6)
-                    .padding(.bottom, 2)
+                    .padding(.top, 5)
+                    .padding(.bottom, 1)
                 }
 
                 ForEach(group.ids, id: \.self) { sessionId in
@@ -1830,7 +1830,7 @@ private struct SessionListView: View {
 
         VStack(spacing: 0) {
             if needsScroll {
-                ThinScrollView(maxHeight: CGFloat(maxVisibleSessions) * 90) {
+                ThinScrollView(maxHeight: CGFloat(maxVisibleSessions) * 74) {
                     content
                 }
                 .clipShape(
@@ -2172,6 +2172,19 @@ private struct SessionCard: View {
         return session.source
     }
 
+    /// Leading-edge stripe color — scan a list by status without reading text.
+    private var statusAccent: Color {
+        switch session.status {
+        case .waitingApproval, .waitingQuestion: return Color(red: 1.0, green: 0.6, blue: 0.2)
+        case .running, .processing: return Color(red: 0.3, green: 0.85, blue: 0.4)
+        case .idle: return .white.opacity(0.22)
+        }
+    }
+
+    private var needsAttention: Bool {
+        session.status == .waitingApproval || session.status == .waitingQuestion || session.interrupted
+    }
+
     private func inlineActionButton(
         _ label: String,
         fg: Color,
@@ -2202,7 +2215,7 @@ private struct SessionCard: View {
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
             // Content
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 3) {
                 // Header: project name + optional session label + short ID
                 HStack(alignment: .center, spacing: 8) {
                     SessionIdentityLine(
@@ -2399,12 +2412,23 @@ private struct SessionCard: View {
             }
             } // end content VStack
         } // end HStack
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(hovering ? Color.white.opacity(0.10) : Color.white.opacity(0.05))
+            RoundedRectangle(cornerRadius: 8)
+                .fill(hovering ? Color.white.opacity(0.12) : Color.white.opacity(0.05))
+                .overlay(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(statusAccent)
+                        .frame(width: 3)
+                        .padding(.vertical, 6)
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(needsAttention ? statusAccent.opacity(0.55) : .clear, lineWidth: 1)
+                )
         )
+        .opacity(session.status == .idle && !hovering ? 0.72 : 1)
         .padding(.horizontal, 6)
         .offset(x: failureShakeOffset)
         .contentShape(Rectangle())

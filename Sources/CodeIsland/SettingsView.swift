@@ -960,9 +960,8 @@ private struct AppearancePreview: View {
     private let aiColor = Color(red: 0.85, green: 0.47, blue: 0.34)
 
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
             // Content
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 3) {
                 // Header
                 HStack(spacing: 6) {
                     Text("my-project")
@@ -976,8 +975,7 @@ private struct AppearancePreview: View {
                         .padding(.vertical, 3)
                         .background(RoundedRectangle(cornerRadius: 4).fill(.white.opacity(0.08)))
                 }
-
-
+                VStack(alignment: .leading, spacing: 3) {
                 // Model identity row
                 Text("sonnet · claude-sonnet-4-5")
                     .font(.system(size: max(9, fs - 2), design: .monospaced))
@@ -1021,10 +1019,10 @@ private struct AppearancePreview: View {
                 .padding(.leading, 4)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(white: 0.05))
         )
         .animation(.easeInOut(duration: 0.25), value: fontSize)
