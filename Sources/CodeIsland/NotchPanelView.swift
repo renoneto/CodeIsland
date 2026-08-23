@@ -2160,6 +2160,18 @@ private struct SessionCard: View {
         }
     }
 
+    /// Model identity line: compact name plus full model id when they differ;
+    /// source name when the session's model is unknown.
+    private var modelRowText: String {
+        if let model = session.model, !model.isEmpty {
+            if let short = session.shortModelName, short != model {
+                return "\(short) · \(model)"
+            }
+            return model
+        }
+        return session.source
+    }
+
     private func inlineActionButton(
         _ label: String,
         fg: Color,
@@ -2189,35 +2201,7 @@ private struct SessionCard: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            // Column 1: Model + subagent icons
-            VStack(spacing: 3) {
-                ModelNameLabel(
-                    model: session.shortModelName,
-                    fallback: session.source,
-                    status: session.status,
-                    size: 12
-                )
-                if showAgentDetails && !session.subagents.isEmpty {
-                    let sorted = session.subagents.values.sorted { $0.startTime < $1.startTime }
-                    // Grid: 4 per row, 8px icons
-                    let rows = stride(from: 0, to: sorted.count, by: 4).map {
-                        Array(sorted[$0..<min($0 + 4, sorted.count)])
-                    }
-                    VStack(spacing: 1) {
-                        ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                            HStack(spacing: 1) {
-                                ForEach(row, id: \.agentId) { sub in
-                                    MiniAgentIcon(active: sub.status != .idle, size: 8)
-                                        .help(subagentTooltipText(sub))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .frame(width: 36)
-
-            // Column 2: Content
+            // Content
             VStack(alignment: .leading, spacing: 6) {
                 // Header: project name + optional session label + short ID
                 HStack(alignment: .center, spacing: 8) {
@@ -2249,6 +2233,14 @@ private struct SessionCard: View {
                         TerminalBadge(session: session)
                     }
                 }
+
+                // Model identity: compact name plus full model id when they differ
+                Text(modelRowText)
+                    .font(.system(size: max(9, fontSize - 2), design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(session.model ?? modelRowText)
 
                 // Inline approval controls (when user keeps panel in session list)
                 if session.status == .waitingApproval, let idx = approvalQueueIndex {
@@ -2405,7 +2397,7 @@ private struct SessionCard: View {
                 }
                 .padding(.leading, 4)
             }
-            } // end Column 2 VStack
+            } // end content VStack
         } // end HStack
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -2953,55 +2945,6 @@ private struct TypingIndicator: View {
     }
 }
 
-// MARK: - Mini Agent Icon (8-bit robot head)
-
-struct MiniAgentIcon: View {
-    let active: Bool
-    var size: CGFloat = 12
-
-    // 0=empty, 1=body, 2=eye, 3=antenna tip, 4=highlight, 5=shadow
-    private let grid: [[Int]] = [
-        [0, 0, 0, 3, 0, 0, 0],  // antenna tip (glows)
-        [0, 0, 0, 1, 0, 0, 0],  // antenna stem
-        [0, 4, 1, 1, 1, 5, 0],  // head top
-        [0, 1, 2, 1, 2, 1, 0],  // eyes
-        [0, 1, 1, 1, 1, 1, 0],  // face
-        [0, 5, 1, 0, 1, 5, 0],  // mouth
-        [0, 0, 1, 0, 1, 0, 0],  // legs
-    ]
-
-    var body: some View {
-        let base = active ? Color.green : Color.gray
-        let bright = active ? Color(red: 0.5, green: 1.0, blue: 0.5) : Color(white: 0.7)
-        let dark = active ? Color(red: 0.1, green: 0.5, blue: 0.15) : Color(white: 0.35)
-        let eye = active ? Color.white : Color(white: 0.85)
-        let glow = active ? Color(red: 0.4, green: 1.0, blue: 0.4) : Color(white: 0.6)
-
-        Canvas { ctx, sz in
-            let px = sz.width / 7
-            for row in 0..<7 {
-                for col in 0..<7 {
-                    let v = grid[row][col]
-                    guard v != 0 else { continue }
-                    let color: Color = switch v {
-                    case 2: eye
-                    case 3: glow
-                    case 4: bright
-                    case 5: dark
-                    default: base
-                    }
-                    ctx.fill(
-                        Path(CGRect(x: CGFloat(col) * px, y: CGFloat(row) * px, width: px, height: px)),
-                        with: .color(color)
-                    )
-                }
-            }
-        }
-        .frame(width: size, height: size)
-        .shadow(color: active ? .green.opacity(0.4) : .clear, radius: 2)
-    }
-}
-
 // MARK: - Shared Helpers
 
 /// Inline markdown rendering (bold, italic, code, links)
@@ -3030,22 +2973,6 @@ private func shortSessionId(_ id: String) -> String {
         return String(clean.suffix(4))
     }
     return String(id.prefix(4))
-}
-
-/// Build the help-tooltip string for a subagent mini-icon. Lives outside
-/// the SwiftUI ViewBuilder so the body stays trivial — complex inline
-/// expressions in ForEach were measurably slowing the hover-expand
-/// animation per #141 review.
-private func subagentTooltipText(_ sub: SubagentState) -> String {
-    let typeLabel = sub.agentType.isEmpty ? "Subagent" : sub.agentType
-    var detail = ""
-    if let tool = sub.currentTool, !tool.isEmpty {
-        detail = tool
-        if let desc = sub.toolDescription, !desc.isEmpty {
-            detail += " " + desc
-        }
-    }
-    return detail.isEmpty ? typeLabel : "\(typeLabel) — \(detail)"
 }
 
 /// Strip internal directives (::code-comment{}, ::git-*{}, etc.) from message text

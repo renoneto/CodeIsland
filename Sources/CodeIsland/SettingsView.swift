@@ -961,19 +961,7 @@ private struct AppearancePreview: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            // Column 1: Model
-            VStack(spacing: 3) {
-                ModelNameLabel(model: "claude-sonnet-4-5", fallback: "codex", status: .processing, size: 12)
-                if showDetails {
-                    HStack(spacing: 1) {
-                        MiniAgentIcon(active: true, size: 8)
-                        MiniAgentIcon(active: false, size: 8)
-                    }
-                }
-            }
-            .frame(width: 36)
-
-            // Column 2: Content
+            // Content
             VStack(alignment: .leading, spacing: 6) {
                 // Header
                 HStack(spacing: 6) {
@@ -989,6 +977,13 @@ private struct AppearancePreview: View {
                         .background(RoundedRectangle(cornerRadius: 4).fill(.white.opacity(0.08)))
                 }
 
+
+                // Model identity row
+                Text("sonnet · claude-sonnet-4-5")
+                    .font(.system(size: max(9, fs - 2), design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
                 // Chat
                 VStack(alignment: .leading, spacing: 3) {
                     // User prompt
