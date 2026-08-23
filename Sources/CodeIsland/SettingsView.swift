@@ -9,7 +9,6 @@ enum SettingsPage: String, Identifiable, Hashable {
     case general
     case behavior
     case appearance
-    case mascots
     case sound
     case shortcuts
     case remote
@@ -24,7 +23,6 @@ enum SettingsPage: String, Identifiable, Hashable {
         case .general: return "gearshape.fill"
         case .behavior: return "slider.horizontal.3"
         case .appearance: return "paintbrush.fill"
-        case .mascots: return "person.2.fill"
         case .sound: return "speaker.wave.2.fill"
         case .shortcuts: return "command.circle.fill"
         case .remote: return "network"
@@ -39,7 +37,6 @@ enum SettingsPage: String, Identifiable, Hashable {
         case .general: return .gray
         case .behavior: return .orange
         case .appearance: return .blue
-        case .mascots: return .pink
         case .sound: return .green
         case .shortcuts: return .indigo
         case .remote: return .mint
@@ -56,7 +53,7 @@ private struct SidebarGroup: Hashable {
 }
 
 private let sidebarGroups: [SidebarGroup] = [
-    SidebarGroup(title: nil, pages: [.general, .behavior, .appearance, .mascots, .sound, .shortcuts]),
+    SidebarGroup(title: nil, pages: [.general, .behavior, .appearance, .sound, .shortcuts]),
     SidebarGroup(title: "CodeIsland", pages: [.remote, .hooks, .buddy, .about]),
 ]
 
@@ -91,7 +88,6 @@ struct SettingsView: View {
                 case .general: GeneralPage()
                 case .behavior: BehaviorPage(appState: appState)
                 case .appearance: AppearancePage()
-                case .mascots: MascotsPage()
                 case .sound: SoundPage()
                 case .shortcuts: ShortcutsPage()
                 case .remote: RemoteHostsPage()
@@ -840,7 +836,6 @@ private struct AppearancePage: View {
     @AppStorage(SettingsKey.maxVisibleSessions) private var maxVisibleSessions = SettingsDefaults.maxVisibleSessions
     @AppStorage(SettingsKey.contentFontSize) private var contentFontSize = SettingsDefaults.contentFontSize
     @AppStorage(SettingsKey.aiMessageLines) private var aiMessageLines = SettingsDefaults.aiMessageLines
-    @AppStorage(SettingsKey.showAgentDetails) private var showAgentDetails = SettingsDefaults.showAgentDetails
     @AppStorage(SettingsKey.showToolStatus) private var showToolStatus = SettingsDefaults.showToolStatus
     @AppStorage(SettingsKey.showGitBranch) private var showGitBranch = SettingsDefaults.showGitBranch
     @AppStorage(SettingsKey.showUsageStats) private var showUsageStats = SettingsDefaults.showUsageStats
@@ -860,8 +855,7 @@ private struct AppearancePage: View {
             Section(l10n["preview"]) {
                 AppearancePreview(
                     fontSize: contentFontSize,
-                    lineLimit: aiMessageLines,
-                    showDetails: showAgentDetails
+                    lineLimit: aiMessageLines
                 )
             }
 
@@ -929,7 +923,6 @@ private struct AppearancePage: View {
                     Text(l10n["5_lines"]).tag(5)
                     Text(l10n["unlimited"]).tag(0)
                 }
-                Toggle(l10n["show_agent_details"], isOn: $showAgentDetails)
                 Toggle(l10n["show_tool_status"], isOn: $showToolStatus)
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle(l10n["show_git_branch"], isOn: $showGitBranch)
@@ -953,7 +946,6 @@ private struct AppearancePage: View {
 private struct AppearancePreview: View {
     let fontSize: Int
     let lineLimit: Int
-    let showDetails: Bool
 
     private var fs: CGFloat { CGFloat(fontSize) }
     private let green = Color(red: 0.3, green: 0.85, blue: 0.4)
@@ -1028,132 +1020,6 @@ private struct AppearancePreview: View {
         .animation(.easeInOut(duration: 0.25), value: fontSize)
         .animation(.easeInOut(duration: 0.25), value: lineLimit)
         .animation(.easeInOut(duration: 0.25), value: showDetails)
-    }
-}
-
-// MARK: - Mascots Page
-
-private struct MascotsPage: View {
-    @ObservedObject private var l10n = L10n.shared
-    @State private var previewStatus: AgentStatus = .processing
-    @AppStorage(SettingsKey.mascotSpeed) private var mascotSpeed = SettingsDefaults.mascotSpeed
-    @AppStorage(SettingsKey.defaultSource) private var defaultSource = SettingsDefaults.defaultSource
-
-    private let mascotList: [(name: String, source: String, desc: String, color: Color)] = [
-        ("Clawd", "claude", "Claude Code", Color(red: 0.871, green: 0.533, blue: 0.427)),
-        ("Dex", "codex", "Codex (OpenAI)", Color(red: 0.92, green: 0.92, blue: 0.93)),
-        ("Gemini", "gemini", "Gemini CLI", Color(red: 0.278, green: 0.588, blue: 0.894)),
-        ("CursorBot", "cursor", "Cursor", Color(red: 0.96, green: 0.31, blue: 0.0)),
-        ("TraeBot", "trae", "Trae", Color(red: 0.96, green: 0.31, blue: 0.0)),
-        ("TraeCNBot", "traecn", "Trae CN", Color(red: 0.96, green: 0.31, blue: 0.0)),
-        ("CopilotBot", "copilot", "GitHub Copilot", Color(red: 0.35, green: 0.75, blue: 0.95)),
-        ("QoderBot", "qoder", "Qoder", Color(red: 0.165, green: 0.859, blue: 0.361)),
-        ("QoderBot", "qoderwork", "QoderWork", Color(red: 0.165, green: 0.859, blue: 0.361)),
-        ("Droid", "droid", "Factory", Color(red: 0.835, green: 0.416, blue: 0.149)),
-        ("Buddy", "codebuddy", "CodeBuddy", Color(red: 0.424, green: 0.302, blue: 1.0)),
-        ("BuddyCN", "codybuddycn", "CodyBuddyCN", Color(red: 0.424, green: 0.302, blue: 1.0)),
-        ("StepFun", "stepfun", "StepFun", Color(red: 0.424, green: 0.302, blue: 1.0)),
-        ("AntiGravity", "antigravity", "AntiGravity", Color(red: 0.424, green: 0.302, blue: 1.0)),
-        ("WorkBuddy", "workbuddy", "WorkBuddy", Color(red: 0.475, green: 0.380, blue: 0.870)),
-        ("Hermes", "hermes", "Hermes", Color(red: 0.424, green: 0.302, blue: 1.0)),
-        ("Molty", "openclaw", "OpenClaw", Color(red: 0.93, green: 0.36, blue: 0.24)),
-        ("QwenBot", "qwen", "Qwen Code", Color(red: 0.486, green: 0.228, blue: 0.929)),
-        ("KimiBot", "kimi", "Kimi Code CLI", Color(red: 0.29, green: 0.56, blue: 1.0)),
-        ("Kiro", "kiro", "Kiro", Color(red: 0.62, green: 0.45, blue: 1.0)),
-        ("Pi", "pi", "Pi", Color(red: 0.55, green: 0.43, blue: 0.95)),
-        ("Oh My Pi", "omp", "Oh My Pi", Color(red: 0.55, green: 0.43, blue: 0.95)),
-        ("OpBot", "opencode", "OpenCode", Color(red: 0.55, green: 0.55, blue: 0.57)),
-        ("ClineBot", "cline", "Cline", Color(red: 0.00, green: 0.70, blue: 0.49)),
-        ("Gemini", "google-antigravity", "Google Antigravity", Color(red: 0.278, green: 0.588, blue: 0.894)),
-    ]
-
-    var body: some View {
-        Form {
-            Section {
-                Picker(l10n["preview_status"], selection: $previewStatus) {
-                    Text(l10n["processing"]).tag(AgentStatus.processing)
-                    Text(l10n["idle"]).tag(AgentStatus.idle)
-                    Text(l10n["waiting_approval"]).tag(AgentStatus.waitingApproval)
-                }
-                .pickerStyle(.segmented)
-
-                HStack {
-                    Text(l10n["mascot_speed"])
-                    Spacer()
-                    Text(mascotSpeed == 0
-                         ? l10n["speed_off"]
-                         : String(format: "%.1f×", Double(mascotSpeed) / 100.0))
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-                Slider(value: Binding(
-                    get: { Double(mascotSpeed) },
-                    set: { mascotSpeed = Int($0) }
-                ), in: 0...300, step: 25)
-
-                Picker(selection: $defaultSource) {
-                    ForEach(mascotList, id: \.source) { mascot in
-                        Text(mascot.desc).tag(mascot.source)
-                    }
-                } label: {
-                    Text(l10n["default_mascot"])
-                    Text(l10n["default_mascot_desc"])
-                }
-                .onChange(of: defaultSource) { _, _ in
-                    ESP32StatePublisher.shared.notifyDirty()
-                }
-            }
-
-            Section {
-                ForEach(mascotList, id: \.source) { mascot in
-                    MascotRow(
-                        name: mascot.name,
-                        source: mascot.source,
-                        desc: mascot.desc,
-                        color: mascot.color,
-                        status: previewStatus
-                    )
-                }
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-private struct MascotRow: View {
-    let name: String
-    let source: String
-    let desc: String
-    let color: Color
-    let status: AgentStatus
-
-    var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.black)
-                    .frame(width: 56, height: 56)
-                MascotView(source: source, status: status, size: 40)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(name)
-                        .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    if let icon = cliIcon(source: source, size: 16) {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .frame(width: 16, height: 16)
-                    }
-                }
-                Text(desc)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, 4)
     }
 }
 

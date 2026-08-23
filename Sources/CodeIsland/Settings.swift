@@ -44,7 +44,6 @@ enum SettingsKey {
     static let maxVisibleSessions = "maxVisibleSessions"
     static let contentFontSize = "contentFontSize"
     static let aiMessageLines = "aiMessageLines"
-    static let showAgentDetails = "showAgentDetails"
     static let notchHeightMode = "notchHeightMode"
     static let customNotchHeight = "customNotchHeight"
 
@@ -86,8 +85,6 @@ enum SettingsKey {
     // Advanced
     static let maxToolHistory = "maxToolHistory"
 
-    // Mascot
-    static let mascotSpeed = "mascotSpeed"
 
     // Session grouping
     static let sessionGroupingMode = "sessionGroupingMode"
@@ -149,7 +146,6 @@ struct SettingsDefaults {
     static let maxVisibleSessions = 5
     static let contentFontSize = 11
     static let aiMessageLines = 1
-    static let showAgentDetails = false
     static let notchHeightMode = NotchHeightMode.matchNotch.rawValue
     static let customNotchHeight = 37.0
 
@@ -171,7 +167,6 @@ struct SettingsDefaults {
 
     static let maxToolHistory = 20
 
-    static let mascotSpeed = 100  // percentage: 0–300, 0 = silent
 
     static let sessionGroupingMode = "all"
 
@@ -232,7 +227,6 @@ class SettingsManager {
             SettingsKey.maxVisibleSessions: SettingsDefaults.maxVisibleSessions,
             SettingsKey.contentFontSize: SettingsDefaults.contentFontSize,
             SettingsKey.aiMessageLines: SettingsDefaults.aiMessageLines,
-            SettingsKey.showAgentDetails: SettingsDefaults.showAgentDetails,
             SettingsKey.notchHeightMode: SettingsDefaults.notchHeightMode,
             SettingsKey.customNotchHeight: SettingsDefaults.customNotchHeight,
             SettingsKey.soundEnabled: SettingsDefaults.soundEnabled,
@@ -250,7 +244,6 @@ class SettingsManager {
             SettingsKey.showUsageStats: SettingsDefaults.showUsageStats,
             SettingsKey.rotationInterval: SettingsDefaults.rotationInterval,
             SettingsKey.maxToolHistory: SettingsDefaults.maxToolHistory,
-            SettingsKey.mascotSpeed: SettingsDefaults.mascotSpeed,
             SettingsKey.sessionGroupingMode: SettingsDefaults.sessionGroupingMode,
             SettingsKey.showToolStatus: SettingsDefaults.showToolStatus,
             SettingsKey.collapsedWidthScale: SettingsDefaults.collapsedWidthScale,
@@ -349,10 +342,6 @@ class SettingsManager {
         set { defaults.set(newValue, forKey: SettingsKey.contentFontSize) }
     }
 
-    var showAgentDetails: Bool {
-        get { defaults.bool(forKey: SettingsKey.showAgentDetails) }
-        set { defaults.set(newValue, forKey: SettingsKey.showAgentDetails) }
-    }
 
     var notchHeightMode: NotchHeightMode {
         get {
