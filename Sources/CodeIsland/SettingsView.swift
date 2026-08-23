@@ -10,7 +10,6 @@ enum SettingsPage: String, Identifiable, Hashable {
     case behavior
     case appearance
     case sound
-    case shortcuts
     case remote
     case hooks
     case buddy
@@ -24,7 +23,6 @@ enum SettingsPage: String, Identifiable, Hashable {
         case .behavior: return "slider.horizontal.3"
         case .appearance: return "paintbrush.fill"
         case .sound: return "speaker.wave.2.fill"
-        case .shortcuts: return "command.circle.fill"
         case .remote: return "network"
         case .hooks: return "link.circle.fill"
         case .buddy: return "dot.radiowaves.left.and.right"
@@ -38,7 +36,6 @@ enum SettingsPage: String, Identifiable, Hashable {
         case .behavior: return .orange
         case .appearance: return .blue
         case .sound: return .green
-        case .shortcuts: return .indigo
         case .remote: return .mint
         case .hooks: return .purple
         case .buddy: return .red
@@ -53,7 +50,7 @@ private struct SidebarGroup: Hashable {
 }
 
 private let sidebarGroups: [SidebarGroup] = [
-    SidebarGroup(title: nil, pages: [.general, .behavior, .appearance, .sound, .shortcuts]),
+    SidebarGroup(title: nil, pages: [.general, .behavior, .appearance, .sound]),
     SidebarGroup(title: "CodeIsland", pages: [.remote, .hooks, .buddy, .about]),
 ]
 
@@ -89,7 +86,6 @@ struct SettingsView: View {
                 case .behavior: BehaviorPage(appState: appState)
                 case .appearance: AppearancePage()
                 case .sound: SoundPage()
-                case .shortcuts: ShortcutsPage()
                 case .remote: RemoteHostsPage()
                 case .hooks: HooksPage()
                 case .buddy: BuddyPage()
@@ -316,6 +312,9 @@ private struct GeneralPage: View {
     @AppStorage(SettingsKey.allowHorizontalDrag) private var allowHorizontalDrag = SettingsDefaults.allowHorizontalDrag
     @AppStorage(SettingsKey.avoidMenuBarIcons) private var avoidMenuBarIcons = SettingsDefaults.avoidMenuBarIcons
     @State private var launchAtLogin: Bool
+    @State private var recordingAction: ShortcutAction?
+    @State private var eventMonitor: Any?
+    @State private var shortcutRefreshKey = 0
 
     init() {
         _launchAtLogin = State(initialValue: SettingsManager.shared.launchAtLogin)
@@ -335,9 +334,20 @@ private struct GeneralPage: View {
                     Text("Türkçe").tag("tr")
                 }
                 Toggle(l10n["launch_at_login"], isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, v in
-                        SettingsManager.shared.launchAtLogin = v
+                    .onChange(of: launchAtLogin) { _, enabled in
+                        SettingsManager.shared.launchAtLogin = enabled
                     }
+            }
+
+            Section(l10n["display"]) {
+                Picker(l10n["display"], selection: $displayChoice) {
+                    Text(l10n["auto"]).tag("auto")
+                    ForEach(Array(NSScreen.screens.enumerated()), id: \.offset) { index, screen in
+                        let name = screen.localizedName
+                        let isBuiltin = name.contains("Built-in") || name.contains("内置")
+                        Text(isBuiltin ? l10n["builtin_display"] : name).tag("screen_\(index)")
+                    }
+                }
                 Toggle(l10n["allow_horizontal_drag"], isOn: $allowHorizontalDrag)
                     .onChange(of: allowHorizontalDrag) { _, enabled in
                         if !enabled {
@@ -351,18 +361,61 @@ private struct GeneralPage: View {
                 Text(l10n["avoid_menu_bar_icons_desc"])
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Picker(l10n["display"], selection: $displayChoice) {
-                    Text(l10n["auto"]).tag("auto")
-                    ForEach(Array(NSScreen.screens.enumerated()), id: \.offset) { index, screen in
-                        let name = screen.localizedName
-                        let isBuiltin = name.contains("Built-in") || name.contains("内置")
-                        let label = isBuiltin ? l10n["builtin_display"] : name
-                        Text(label).tag("screen_\(index)")
-                    }
+            }
+
+            Section(l10n["shortcuts"]) {
+                ForEach(ShortcutAction.allCases) { action in
+                    ShortcutRow(
+                        action: action,
+                        isRecording: recordingAction == action,
+                        onStartRecording: { startRecording(action) },
+                        onClear: { clearBinding(action) }
+                    )
+                    .id("\(action.rawValue)-\(shortcutRefreshKey)")
                 }
             }
         }
         .formStyle(.grouped)
+        .onDisappear { stopRecording() }
+    }
+
+    private func startRecording(_ action: ShortcutAction) {
+        stopRecording()
+        recordingAction = action
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if event.keyCode == 53 {
+                self.stopRecording()
+                return nil
+            }
+            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            guard modifiers.contains(.command) || modifiers.contains(.control) || modifiers.contains(.option) else {
+                return nil
+            }
+            action.setBinding(keyCode: event.keyCode, modifiers: modifiers)
+            if !action.isEnabled { action.setEnabled(true) }
+            self.stopRecording()
+            self.shortcutRefreshKey += 1
+            self.notifyShortcutChange()
+            return nil
+        }
+    }
+
+    private func clearBinding(_ action: ShortcutAction) {
+        action.setEnabled(false)
+        shortcutRefreshKey += 1
+        notifyShortcutChange()
+    }
+
+    private func stopRecording() {
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+            self.eventMonitor = nil
+        }
+        recordingAction = nil
+    }
+
+    private func notifyShortcutChange() {
+        (NSApp.delegate as? AppDelegate)?.setupGlobalShortcut()
     }
 }
 
@@ -2188,71 +2241,6 @@ struct AppLogoView: View {
 
 // MARK: - Shortcuts Page
 
-private struct ShortcutsPage: View {
-    @ObservedObject private var l10n = L10n.shared
-    @State private var recordingAction: ShortcutAction?
-    @State private var eventMonitor: Any?
-    @State private var refreshKey = 0
-
-    var body: some View {
-        Form {
-            Section {
-                ForEach(ShortcutAction.allCases) { action in
-                    ShortcutRow(
-                        action: action,
-                        isRecording: recordingAction == action,
-                        onStartRecording: { startRecording(action) },
-                        onClear: { clearBinding(action) }
-                    )
-                    .id("\(action.rawValue)-\(refreshKey)")
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .onDisappear { stopRecording() }
-    }
-
-    private func startRecording(_ action: ShortcutAction) {
-        stopRecording()
-        recordingAction = action
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if event.keyCode == 53 { // Escape — cancel
-                self.stopRecording()
-                return nil
-            }
-            let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            guard mods.contains(.command) || mods.contains(.control) || mods.contains(.option) else {
-                return nil
-            }
-            action.setBinding(keyCode: event.keyCode, modifiers: mods)
-            if !action.isEnabled { action.setEnabled(true) }
-            self.stopRecording()
-            self.refreshKey += 1
-            self.notifyChange()
-            return nil
-        }
-    }
-
-    private func clearBinding(_ action: ShortcutAction) {
-        action.setEnabled(false)
-        refreshKey += 1
-        notifyChange()
-    }
-
-    private func stopRecording() {
-        if let m = eventMonitor {
-            NSEvent.removeMonitor(m)
-            eventMonitor = nil
-        }
-        recordingAction = nil
-    }
-
-    private func notifyChange() {
-        if let delegate = NSApp.delegate as? AppDelegate {
-            delegate.setupGlobalShortcut()
-        }
-    }
-}
 
 private struct ShortcutRow: View {
     let action: ShortcutAction
