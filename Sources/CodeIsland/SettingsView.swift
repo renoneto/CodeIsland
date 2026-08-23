@@ -7,12 +7,10 @@ import CodeIslandCore
 
 enum SettingsPage: String, Identifiable, Hashable {
     case general
-    case behavior
-    case appearance
-    case sound
-    case remote
-    case hooks
-    case buddy
+    case display
+    case notifications
+    case integrations
+    case advanced
     case about
 
     var id: String { rawValue }
@@ -20,12 +18,10 @@ enum SettingsPage: String, Identifiable, Hashable {
     var icon: String {
         switch self {
         case .general: return "gearshape.fill"
-        case .behavior: return "slider.horizontal.3"
-        case .appearance: return "paintbrush.fill"
-        case .sound: return "speaker.wave.2.fill"
-        case .remote: return "network"
-        case .hooks: return "link.circle.fill"
-        case .buddy: return "dot.radiowaves.left.and.right"
+        case .display: return "rectangle.compress.vertical"
+        case .notifications: return "speaker.wave.2.fill"
+        case .integrations: return "link.circle.fill"
+        case .advanced: return "slider.horizontal.3"
         case .about: return "info.circle.fill"
         }
     }
@@ -33,12 +29,10 @@ enum SettingsPage: String, Identifiable, Hashable {
     var color: Color {
         switch self {
         case .general: return .gray
-        case .behavior: return .orange
-        case .appearance: return .blue
-        case .sound: return .green
-        case .remote: return .mint
-        case .hooks: return .purple
-        case .buddy: return .red
+        case .display: return .blue
+        case .notifications: return .green
+        case .integrations: return .purple
+        case .advanced: return .orange
         case .about: return .cyan
         }
     }
@@ -50,8 +44,8 @@ private struct SidebarGroup: Hashable {
 }
 
 private let sidebarGroups: [SidebarGroup] = [
-    SidebarGroup(title: nil, pages: [.general, .behavior, .appearance, .sound]),
-    SidebarGroup(title: "CodeIsland", pages: [.remote, .hooks, .buddy, .about]),
+    SidebarGroup(title: nil, pages: [.general, .display, .notifications, .integrations, .advanced]),
+    SidebarGroup(title: "CodeIsland", pages: [.about]),
 ]
 
 // MARK: - Main View
@@ -83,17 +77,75 @@ struct SettingsView: View {
             Group {
                 switch selectedPage {
                 case .general: GeneralPage()
-                case .behavior: BehaviorPage(appState: appState)
-                case .appearance: AppearancePage()
-                case .sound: SoundPage()
-                case .remote: RemoteHostsPage()
-                case .hooks: HooksPage()
-                case .buddy: BuddyPage()
+                case .display: DisplayPage(appState: appState)
+                case .notifications: SoundPage()
+                case .integrations: IntegrationsPage()
+                case .advanced: AdvancedPage(appState: appState)
                 case .about: AboutPage()
                 }
             }
         }
         .toolbar(removing: .sidebarToggle)
+    }
+}
+
+private struct DisplayPage: View {
+    enum Tab: String, CaseIterable, Identifiable {
+        case behavior
+        case content
+
+        var id: String { rawValue }
+    }
+
+    var appState: AppState?
+    @State private var tab: Tab = .behavior
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("Display settings", selection: $tab) {
+                Text("Behavior").tag(Tab.behavior)
+                Text("Content").tag(Tab.content)
+            }
+            .pickerStyle(.segmented)
+            .padding()
+            .accessibilityLabel("Display settings")
+
+            switch tab {
+            case .behavior: BehaviorPage()
+            case .content: AppearancePage()
+            }
+        }
+    }
+}
+
+private struct IntegrationsPage: View {
+    enum Tab: String, CaseIterable, Identifiable {
+        case agents
+        case remote
+        case companions
+
+        var id: String { rawValue }
+    }
+
+    @State private var tab: Tab = .agents
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("Integration type", selection: $tab) {
+                Text("Agents").tag(Tab.agents)
+                Text("Remote").tag(Tab.remote)
+                Text("Companions").tag(Tab.companions)
+            }
+            .pickerStyle(.segmented)
+            .padding()
+            .accessibilityLabel("Integration type")
+
+            switch tab {
+            case .agents: HooksPage()
+            case .remote: RemoteHostsPage()
+            case .companions: BuddyPage()
+            }
+        }
     }
 }
 
@@ -423,35 +475,56 @@ private struct GeneralPage: View {
 
 private struct BehaviorPage: View {
     @ObservedObject private var l10n = L10n.shared
-    var appState: AppState?
-
     @AppStorage(SettingsKey.hideInFullscreen) private var hideInFullscreen = SettingsDefaults.hideInFullscreen
     @AppStorage(SettingsKey.hideWhenNoSession) private var hideWhenNoSession = SettingsDefaults.hideWhenNoSession
-    @AppStorage(SettingsKey.smartSuppress) private var smartSuppress = SettingsDefaults.smartSuppress
     @AppStorage(SettingsKey.collapseOnMouseLeave) private var collapseOnMouseLeave = SettingsDefaults.collapseOnMouseLeave
     @AppStorage(SettingsKey.autoCollapseAfterSessionJump) private var autoCollapseAfterSessionJump = SettingsDefaults.autoCollapseAfterSessionJump
-    // Seeded through the migration shim so a legacy autoExpandOnCompletion=false
-    // shows up as "off" here; writes go to the new key via onChange.
     @State private var completionStyle: String = AppState.completionStyle().rawValue
-    @AppStorage(SettingsKey.pluginSessionMode) private var pluginSessionMode = SettingsDefaults.pluginSessionMode
+
+    var body: some View {
+        Form {
+            Section(l10n["display_section"]) {
+                BehaviorToggleRow(title: l10n["hide_in_fullscreen"], desc: l10n["hide_in_fullscreen_desc"], isOn: $hideInFullscreen, animation: .hideFullscreen)
+                BehaviorToggleRow(title: l10n["hide_when_no_session"], desc: l10n["hide_when_no_session_desc"], isOn: $hideWhenNoSession, animation: .hideNoSession)
+                BehaviorToggleRow(title: l10n["collapse_on_mouse_leave"], desc: l10n["collapse_on_mouse_leave_desc"], isOn: $collapseOnMouseLeave, animation: .collapseMouseLeave)
+                BehaviorToggleRow(title: l10n["auto_collapse_after_session_jump"], desc: l10n["auto_collapse_after_session_jump_desc"], isOn: $autoCollapseAfterSessionJump, animation: .clickJumpCollapse)
+                Picker(l10n["completion_notification"], selection: $completionStyle) {
+                    Text(l10n["completion_style_expand"]).tag(AppState.CompletionStyle.expand.rawValue)
+                    Text(l10n["completion_style_glance"]).tag(AppState.CompletionStyle.glance.rawValue)
+                    Text(l10n["completion_style_off"]).tag(AppState.CompletionStyle.off.rawValue)
+                }
+                .onChange(of: completionStyle) { _, value in
+                    UserDefaults.standard.set(value, forKey: SettingsKey.completionNotificationStyle)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct AdvancedPage: View {
+    @ObservedObject private var l10n = L10n.shared
+    var appState: AppState?
+    @AppStorage(SettingsKey.smartSuppress) private var smartSuppress = SettingsDefaults.smartSuppress
     @AppStorage(SettingsKey.hapticOnHover) private var hapticOnHover = SettingsDefaults.hapticOnHover
     @AppStorage(SettingsKey.hapticIntensity) private var hapticIntensity = SettingsDefaults.hapticIntensity
     @AppStorage(SettingsKey.sessionTimeout) private var sessionTimeout = SettingsDefaults.sessionTimeout
     @AppStorage(SettingsKey.rotationInterval) private var rotationInterval = SettingsDefaults.rotationInterval
     @AppStorage(SettingsKey.maxToolHistory) private var maxToolHistory = SettingsDefaults.maxToolHistory
-    @AppStorage(SettingsKey.autoApproveTools) private var autoApproveRaw: String = SettingsDefaults.autoApproveTools
-    @AppStorage(SettingsKey.excludedHookCwdSubstrings) private var excludedHookCwdSubstrings: String = SettingsDefaults.excludedHookCwdSubstrings
-    @AppStorage(SettingsKey.claudeConfigDir) private var claudeConfigDir: String = SettingsDefaults.claudeConfigDir
-    @AppStorage(SettingsKey.webhookEnabled) private var webhookEnabled: Bool = SettingsDefaults.webhookEnabled
-    @AppStorage(SettingsKey.webhookURL) private var webhookURL: String = SettingsDefaults.webhookURL
-    @AppStorage(SettingsKey.webhookEventFilter) private var webhookEventFilter: String = SettingsDefaults.webhookEventFilter
+    @AppStorage(SettingsKey.pluginSessionMode) private var pluginSessionMode = SettingsDefaults.pluginSessionMode
+    @AppStorage(SettingsKey.autoApproveTools) private var autoApproveRaw = SettingsDefaults.autoApproveTools
+    @AppStorage(SettingsKey.excludedHookCwdSubstrings) private var excludedHookCwdSubstrings = SettingsDefaults.excludedHookCwdSubstrings
+    @AppStorage(SettingsKey.claudeConfigDir) private var claudeConfigDir = SettingsDefaults.claudeConfigDir
+    @AppStorage(SettingsKey.webhookEnabled) private var webhookEnabled = SettingsDefaults.webhookEnabled
+    @AppStorage(SettingsKey.webhookURL) private var webhookURL = SettingsDefaults.webhookURL
+    @AppStorage(SettingsKey.webhookEventFilter) private var webhookEventFilter = SettingsDefaults.webhookEventFilter
 
     private var pluginSessionModeBinding: Binding<String> {
         Binding(
             get: { pluginSessionMode },
-            set: { newMode in
-                guard pluginSessionMode != newMode else { return }
-                pluginSessionMode = newMode
+            set: { value in
+                guard value != pluginSessionMode else { return }
+                pluginSessionMode = value
                 appState?.applyCurrentPluginSessionMode()
             }
         )
@@ -460,138 +533,16 @@ private struct BehaviorPage: View {
     private func autoApproveBinding(for name: String) -> Binding<Bool> {
         Binding(
             get: { autoApproveRaw.split(separator: ",").contains(Substring(name)) },
-            set: { isOn in
-                var set = Set(autoApproveRaw.split(separator: ",").map(String.init))
-                if isOn { set.insert(name) } else { set.remove(name) }
-                autoApproveRaw = set.sorted().joined(separator: ",")
+            set: { enabled in
+                var tools = Set(autoApproveRaw.split(separator: ",").map(String.init))
+                if enabled { tools.insert(name) } else { tools.remove(name) }
+                autoApproveRaw = tools.sorted().joined(separator: ",")
             }
         )
     }
 
     var body: some View {
         Form {
-            Section(l10n["display_section"]) {
-                BehaviorToggleRow(
-                    title: l10n["hide_in_fullscreen"],
-                    desc: l10n["hide_in_fullscreen_desc"],
-                    isOn: $hideInFullscreen,
-                    animation: .hideFullscreen
-                )
-                BehaviorToggleRow(
-                    title: l10n["hide_when_no_session"],
-                    desc: l10n["hide_when_no_session_desc"],
-                    isOn: $hideWhenNoSession,
-                    animation: .hideNoSession
-                )
-                BehaviorToggleRow(
-                    title: l10n["smart_suppress"],
-                    desc: l10n["smart_suppress_desc"],
-                    isOn: $smartSuppress,
-                    animation: .smartSuppress
-                )
-                BehaviorToggleRow(
-                    title: l10n["collapse_on_mouse_leave"],
-                    desc: l10n["collapse_on_mouse_leave_desc"],
-                    isOn: $collapseOnMouseLeave,
-                    animation: .collapseMouseLeave
-                )
-                BehaviorToggleRow(
-                    title: l10n["auto_collapse_after_session_jump"],
-                    desc: l10n["auto_collapse_after_session_jump_desc"],
-                    isOn: $autoCollapseAfterSessionJump,
-                    animation: .clickJumpCollapse
-                )
-                VStack(alignment: .leading, spacing: 2) {
-                    Picker(l10n["completion_notification"], selection: $completionStyle) {
-                        Text(l10n["completion_style_expand"]).tag(AppState.CompletionStyle.expand.rawValue)
-                        Text(l10n["completion_style_glance"]).tag(AppState.CompletionStyle.glance.rawValue)
-                        Text(l10n["completion_style_off"]).tag(AppState.CompletionStyle.off.rawValue)
-                    }
-                    .onChange(of: completionStyle) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: SettingsKey.completionNotificationStyle)
-                    }
-                    Text(l10n["completion_notification_desc"])
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                }
-                BehaviorToggleRow(
-                    title: l10n["haptic_on_hover"],
-                    desc: l10n["haptic_on_hover_desc"],
-                    isOn: $hapticOnHover,
-                    animation: .hapticHover
-                )
-                if hapticOnHover {
-                    Picker(selection: $hapticIntensity) {
-                        Text(l10n["haptic_light"]).tag(1)
-                        Text(l10n["haptic_medium"]).tag(2)
-                        Text(l10n["haptic_strong"]).tag(3)
-                    } label: {
-                        EmptyView()
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.leading, 84)
-                }
-            }
-
-            Section(l10n["auto_approve_tools"]) {
-                Text(l10n["auto_approve_tools_desc"])
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ForEach(SettingsManager.allAutoApproveTools, id: \.name) { tool in
-                    Toggle(isOn: autoApproveBinding(for: tool.name)) {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(tool.name)
-                                .font(.system(size: 12, design: .monospaced))
-                            Text(l10n["auto_approve_\(tool.name)"])
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-
-            Section(l10n["claude_config_dir_title"]) {
-                Text(l10n["claude_config_dir_desc"])
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField(l10n["claude_config_dir_placeholder"], text: $claudeConfigDir)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
-                Text(String(format: l10n["claude_config_dir_resolved"],
-                            ClaudeConfigPaths.displayPath(ClaudeConfigPaths.configDir())))
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-            }
-
-            Section(l10n["excluded_hook_cwd_title"]) {
-                Text(l10n["excluded_hook_cwd_desc"])
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField(l10n["excluded_hook_cwd_placeholder"], text: $excludedHookCwdSubstrings)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
-            }
-
-            Section(l10n["webhook_title"]) {
-                Text(l10n["webhook_desc"])
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Toggle(l10n["webhook_enable"], isOn: $webhookEnabled)
-                if webhookEnabled {
-                    TextField(l10n["webhook_url_placeholder"], text: $webhookURL)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12, design: .monospaced))
-                        .autocorrectionDisabled(true)
-                    TextField(l10n["webhook_filter_placeholder"], text: $webhookEventFilter)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12, design: .monospaced))
-                        .autocorrectionDisabled(true)
-                    Text(l10n["webhook_filter_hint"])
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
             Section(l10n["sessions"]) {
                 Picker(selection: $sessionTimeout) {
                     Text(l10n["no_cleanup"]).tag(0)
@@ -628,6 +579,57 @@ private struct BehaviorPage: View {
                 } label: {
                     Text(l10n["plugin_session_mode"])
                     Text(l10n["plugin_session_mode_desc"])
+                }
+            }
+
+            Section("Display tuning") {
+                BehaviorToggleRow(title: l10n["smart_suppress"], desc: l10n["smart_suppress_desc"], isOn: $smartSuppress, animation: .smartSuppress)
+                BehaviorToggleRow(title: l10n["haptic_on_hover"], desc: l10n["haptic_on_hover_desc"], isOn: $hapticOnHover, animation: .hapticHover)
+                if hapticOnHover {
+                    Picker("Haptic intensity", selection: $hapticIntensity) {
+                        Text(l10n["haptic_light"]).tag(1)
+                        Text(l10n["haptic_medium"]).tag(2)
+                        Text(l10n["haptic_strong"]).tag(3)
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
+
+            Section(l10n["auto_approve_tools"]) {
+                Text("Auto-approved tools bypass permission prompts.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                ForEach(SettingsManager.allAutoApproveTools, id: \.name) { tool in
+                    Toggle(isOn: autoApproveBinding(for: tool.name)) {
+                        Text(tool.name).font(.system(size: 12, design: .monospaced))
+                    }
+                }
+            }
+
+            Section(l10n["claude_config_dir_title"]) {
+                TextField(l10n["claude_config_dir_placeholder"], text: $claudeConfigDir)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+                Text(String(format: l10n["claude_config_dir_resolved"], ClaudeConfigPaths.displayPath(ClaudeConfigPaths.configDir())))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+
+            Section(l10n["excluded_hook_cwd_title"]) {
+                TextField(l10n["excluded_hook_cwd_placeholder"], text: $excludedHookCwdSubstrings)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+            }
+
+            Section(l10n["webhook_title"]) {
+                Toggle(l10n["webhook_enable"], isOn: $webhookEnabled)
+                if webhookEnabled {
+                    TextField(l10n["webhook_url_placeholder"], text: $webhookURL)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled(true)
+                    TextField(l10n["webhook_filter_placeholder"], text: $webhookEventFilter)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled(true)
                 }
             }
         }
@@ -1072,7 +1074,6 @@ private struct AppearancePreview: View {
         )
         .animation(.easeInOut(duration: 0.25), value: fontSize)
         .animation(.easeInOut(duration: 0.25), value: lineLimit)
-        .animation(.easeInOut(duration: 0.25), value: showDetails)
     }
 }
 
@@ -1140,21 +1141,6 @@ private struct SoundPage: View {
             }
 
             if soundEnabled {
-                Section(l10n["sessions"]) {
-                    SoundEventRow(title: l10n["session_start"], subtitle: l10n["new_claude_session"], soundName: "8bit_start", isOn: $soundSessionStart)
-                    SoundEventRow(title: l10n["task_complete"], subtitle: l10n["ai_completed_reply"], soundName: "8bit_complete", isOn: $soundTaskComplete)
-                    SoundEventRow(title: l10n["task_error"], subtitle: l10n["tool_or_api_error"], soundName: "8bit_error", isOn: $soundTaskError)
-                }
-
-                Section(l10n["interaction"]) {
-                    SoundEventRow(title: l10n["approval_needed"], subtitle: l10n["waiting_approval_desc"], soundName: "8bit_approval", isOn: $soundApprovalNeeded)
-                    SoundEventRow(title: l10n["task_confirmation"], subtitle: l10n["you_sent_message"], soundName: "8bit_submit", isOn: $soundPromptSubmit)
-                }
-
-                Section(l10n["system_section"]) {
-                    SoundEventRow(title: l10n["boot_sound"], subtitle: l10n["boot_sound_desc"], soundName: "8bit_boot", isOn: $soundBoot)
-                }
-
                 Section {
                     VStack(alignment: .leading, spacing: 2) {
                         Toggle(l10n["quiet_hours"], isOn: $quietHoursEnabled)
@@ -1164,18 +1150,21 @@ private struct SoundPage: View {
                     }
                     if quietHoursEnabled {
                         HStack(spacing: 16) {
-                            DatePicker(
-                                l10n["quiet_hours_start"],
-                                selection: timeBinding($quietHoursStart),
-                                displayedComponents: .hourAndMinute
-                            )
-                            DatePicker(
-                                l10n["quiet_hours_end"],
-                                selection: timeBinding($quietHoursEnd),
-                                displayedComponents: .hourAndMinute
-                            )
+                            DatePicker(l10n["quiet_hours_start"], selection: timeBinding($quietHoursStart), displayedComponents: .hourAndMinute)
+                            DatePicker(l10n["quiet_hours_end"], selection: timeBinding($quietHoursEnd), displayedComponents: .hourAndMinute)
                         }
                         .datePickerStyle(.field)
+                    }
+                }
+
+                Section {
+                    DisclosureGroup("Customize sounds") {
+                        SoundEventRow(title: l10n["task_complete"], subtitle: l10n["ai_completed_reply"], soundName: "8bit_complete", isOn: $soundTaskComplete)
+                        SoundEventRow(title: l10n["approval_needed"], subtitle: l10n["waiting_approval_desc"], soundName: "8bit_approval", isOn: $soundApprovalNeeded)
+                        SoundEventRow(title: l10n["session_start"], subtitle: l10n["new_claude_session"], soundName: "8bit_start", isOn: $soundSessionStart)
+                        SoundEventRow(title: l10n["task_error"], subtitle: l10n["tool_or_api_error"], soundName: "8bit_error", isOn: $soundTaskError)
+                        SoundEventRow(title: l10n["task_confirmation"], subtitle: l10n["you_sent_message"], soundName: "8bit_submit", isOn: $soundPromptSubmit)
+                        SoundEventRow(title: l10n["boot_sound"], subtitle: l10n["boot_sound_desc"], soundName: "8bit_boot", isOn: $soundBoot)
                     }
                 }
             }
