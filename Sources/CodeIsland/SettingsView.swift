@@ -961,9 +961,9 @@ private struct AppearancePreview: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            // Column 1: Mascot
+            // Column 1: Model
             VStack(spacing: 3) {
-                MascotView(source: "claude", status: .processing, size: 32)
+                ModelNameLabel(model: "claude-sonnet-4-5", fallback: "codex", status: .processing, size: 12)
                 if showDetails {
                     HStack(spacing: 1) {
                         MiniAgentIcon(active: true, size: 8)

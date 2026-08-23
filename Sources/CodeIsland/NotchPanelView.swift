@@ -172,7 +172,7 @@ struct NotchPanelView: View {
                 if showBar {
                     // Active: compact bar — wider version when expanded
                     HStack(spacing: 0) {
-                        CompactLeftWing(appState: appState, expanded: shouldShowExpanded, mascotSize: mascotSize, hasNotch: hasNotch, showToolStatus: showToolStatus)
+                        CompactLeftWing(appState: appState, expanded: shouldShowExpanded, hasNotch: hasNotch, showToolStatus: showToolStatus)
                         if hasNotch && !shouldShowExpanded {
                             Spacer(minLength: effectiveNotchW)
                         } else if !shouldShowExpanded && showToolStatus {
@@ -186,7 +186,6 @@ struct NotchPanelView: View {
                     .frame(height: notchHeight)
                 } else if showIdleIndicator {
                     IdleIndicatorBar(
-                        mascotSize: mascotSize,
                         compactWingWidth: compactWingWidth,
                         notchW: effectiveNotchW,
                         notchHeight: notchHeight,
@@ -421,7 +420,6 @@ struct NotchPanelView: View {
 private struct CompactLeftWing: View {
     var appState: AppState
     let expanded: Bool
-    let mascotSize: CGFloat
     let hasNotch: Bool
     let showToolStatus: Bool
     @AppStorage(SettingsKey.sessionGroupingMode) private var groupingMode = SettingsDefaults.sessionGroupingMode
@@ -476,10 +474,16 @@ private struct CompactLeftWing: View {
                     .overlay(Rectangle().stroke(.white.opacity(0.1), lineWidth: 1))
                 }
             } else {
-                MascotView(source: displaySource, status: displayStatus, size: mascotSize)
-                    .id(displaySource)
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.3), value: displaySource)
+                ModelNameLabel(
+                    model: displaySession?.shortModelName,
+                    fallback: displaySource,
+                    status: displayStatus,
+                    size: 11
+                )
+                .frame(maxWidth: 64, alignment: .leading)
+                .id(displaySession?.shortModelName ?? displaySource)
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.3), value: displaySession?.shortModelName)
 
                 // On notch screens, show tool name only (no description, space is tight)
                 if hasNotch, showToolStatus, let tool = shownTool {
@@ -770,7 +774,6 @@ private struct NotchIconButton: View {
 // MARK: - Idle Indicator Bar
 
 private struct IdleIndicatorBar: View {
-    let mascotSize: CGFloat
     let compactWingWidth: CGFloat
     let notchW: CGFloat
     let notchHeight: CGFloat
@@ -778,16 +781,9 @@ private struct IdleIndicatorBar: View {
     let hovered: Bool
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(SettingsKey.soundEnabled) private var soundEnabled = SettingsDefaults.soundEnabled
-    @AppStorage(SettingsKey.defaultSource) private var defaultSource = SettingsDefaults.defaultSource
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left: mascot
-            HStack(spacing: 6) {
-                MascotView(source: defaultSource, status: .idle, size: mascotSize)
-                    .opacity(hovered ? 0.9 : 0.5)
-            }
-            .padding(.leading, 6)
 
             Spacer(minLength: hasNotch ? notchW : 0)
 
@@ -2193,9 +2189,14 @@ private struct SessionCard: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            // Column 1: Character + subagent icons
+            // Column 1: Model + subagent icons
             VStack(spacing: 3) {
-                MascotView(source: session.source, status: session.status, size: 32)
+                ModelNameLabel(
+                    model: session.shortModelName,
+                    fallback: session.source,
+                    status: session.status,
+                    size: 12
+                )
                 if showAgentDetails && !session.subagents.isEmpty {
                     let sorted = session.subagents.values.sorted { $0.startTime < $1.startTime }
                     // Grid: 4 per row, 8px icons
