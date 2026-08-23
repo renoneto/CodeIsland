@@ -2753,7 +2753,7 @@ struct ConfigInstaller {
     /// Current pi extension version — bump when codeisland-pi.ts changes.
     private static let piExtensionVersion = "v2"
     /// Current OMP extension version — bump when codeisland-omp.ts changes.
-    private static let ompExtensionVersion = "v3"
+    private static let ompExtensionVersion = "v4"
 
     private static func piExtensionSource() -> String? {
         if let url = Bundle.appModule.url(forResource: "codeisland-pi", withExtension: "ts", subdirectory: "Resources"),

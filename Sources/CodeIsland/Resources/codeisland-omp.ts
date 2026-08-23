@@ -1,5 +1,5 @@
 // CodeIsland OMP extension
-// version: v3
+// version: v4
 
 import { execFileSync } from "node:child_process";
 import { connect } from "node:net";
@@ -89,6 +89,7 @@ function base(
   cwd: string,
   extra: Record<string, unknown>,
   tty: string | null,
+  transcriptPath: string | null,
 ) {
   return {
     session_id: `omp-${sessionId}`,
@@ -97,8 +98,20 @@ function base(
     _env: collectEnv(),
     _tty: tty,
     cwd,
+    // Lets HookServer fold subagent transcripts (nested under
+    // `<parent>.jsonl/<child>.jsonl`) onto the parent session card.
+    ...(transcriptPath ? { transcript_path: transcriptPath } : {}),
     ...extra,
   };
+}
+
+function sessionFile(ctx: { sessionManager: { getSessionFile?: () => unknown } }): string | null {
+  try {
+    const file = ctx.sessionManager?.getSessionFile?.();
+    return typeof file === "string" && file ? file : null;
+  } catch {
+    return null;
+  }
 }
 
 function extractLastAssistantText(messages: readonly unknown[]): string {
@@ -141,15 +154,18 @@ export default function codeislandExtension(pi: ExtensionAPI) {
       }
     });
   }
-  function ensureSessionStarted(sessionId: string, cwd: string): void {
+  function ensureSessionStarted(
+    sessionId: string,
+    ctx: { cwd: string; sessionManager: { getSessionFile?: () => unknown } },
+  ): void {
     const sid = `omp-${sessionId}`;
     if (startedSessions.has(sid)) return;
 
     const sessionName = pi.getSessionName();
-    enqueueEvent(sid, base(sessionId, cwd, {
+    enqueueEvent(sid, base(sessionId, ctx.cwd, {
       hook_event_name: "SessionStart",
       ...(sessionName ? { session_title: sessionName } : {}),
-    }, tty));
+    }, tty, sessionFile(ctx)));
     startedSessions.add(sid);
   }
 
@@ -159,33 +175,33 @@ export default function codeislandExtension(pi: ExtensionAPI) {
 
   pi.on("session_shutdown", (_event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
-    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "SessionEnd" }, tty));
+    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "SessionEnd" }, tty, sessionFile(ctx)));
     startedSessions.delete(`omp-${sessionId}`);
   });
 
   pi.on("before_agent_start", (event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
-    ensureSessionStarted(sessionId, ctx.cwd);
+    ensureSessionStarted(sessionId, ctx);
     enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, {
       hook_event_name: "UserPromptSubmit",
       prompt: event.prompt ?? "",
-    }, tty));
+    }, tty, sessionFile(ctx)));
   });
 
   pi.on("agent_end", (event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
-    ensureSessionStarted(sessionId, ctx.cwd);
+    ensureSessionStarted(sessionId, ctx);
     const sessionName = pi.getSessionName();
     enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, {
       hook_event_name: "Stop",
       last_assistant_message: extractLastAssistantText(event.messages) || undefined,
       ...(sessionName ? { session_title: sessionName } : {}),
-    }, tty));
+    }, tty, sessionFile(ctx)));
   });
 
   pi.on("tool_call", (event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
-    ensureSessionStarted(sessionId, ctx.cwd);
+    ensureSessionStarted(sessionId, ctx);
     const toolInput: Record<string, unknown> = { ...event.input };
     if (event.toolName === "bash" && typeof event.input.command === "string") {
       toolInput.patterns = [event.input.command];
@@ -197,24 +213,24 @@ export default function codeislandExtension(pi: ExtensionAPI) {
       hook_event_name: "PreToolUse",
       tool_name: event.toolName.charAt(0).toUpperCase() + event.toolName.slice(1),
       tool_input: toolInput,
-    }, tty));
+    }, tty, sessionFile(ctx)));
   });
 
   pi.on("tool_result", (_event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
-    ensureSessionStarted(sessionId, ctx.cwd);
-    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "PostToolUse" }, tty));
+    ensureSessionStarted(sessionId, ctx);
+    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "PostToolUse" }, tty, sessionFile(ctx)));
   });
 
   pi.on("session_before_compact", (_event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
-    ensureSessionStarted(sessionId, ctx.cwd);
-    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "PreCompact" }, tty));
+    ensureSessionStarted(sessionId, ctx);
+    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "PreCompact" }, tty, sessionFile(ctx)));
   });
 
   pi.on("session_compact", (_event, ctx) => {
     const sessionId = ctx.sessionManager.getSessionId();
-    ensureSessionStarted(sessionId, ctx.cwd);
-    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "PostCompact" }, tty));
+    ensureSessionStarted(sessionId, ctx);
+    enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, { hook_event_name: "PostCompact" }, tty, sessionFile(ctx)));
   });
 }

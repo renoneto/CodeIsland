@@ -311,6 +311,7 @@ class HookServer {
     private static let pluginMarkerBytes = Data("_via_plugin".utf8)
     private static let sourceMarkerBytes = Data(#""_source""#.utf8)
     private static let codexMarkerBytes = Data("codex".utf8)
+    private static let ompSourceMarkerBytes = Data(#""_source":"omp""#.utf8)
     private static let cursorTranscriptMarkerBytes = Data("agent-transcripts".utf8)
     private static let cursorSourceMarkerBytes = Data("cursor".utf8)
 
@@ -349,6 +350,7 @@ class HookServer {
     private func routeSubsessionPayloadIfNeeded(data: Data) -> (processedData: Data, responseData: Data?) {
         let mayNeedPluginOrCodex = data.range(of: Self.pluginMarkerBytes) != nil
             || (data.range(of: Self.sourceMarkerBytes) != nil && data.range(of: Self.codexMarkerBytes) != nil)
+        let mayNeedOmp = data.range(of: Self.ompSourceMarkerBytes) != nil
         let mayNeedCursor = data.range(of: Self.cursorTranscriptMarkerBytes) != nil
             && data.range(of: Self.cursorSourceMarkerBytes) != nil
 
@@ -361,7 +363,7 @@ class HookServer {
             return (data, nil)
         }
 
-        guard mayNeedPluginOrCodex || mayNeedCursor,
+        guard mayNeedPluginOrCodex || mayNeedOmp || mayNeedCursor,
               let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return (data, nil)
         }
@@ -399,6 +401,32 @@ class HookServer {
                    let mainSessionId = appState.findSessionId(forSource: source, ppid: ppid) {
                     var rewritten = raw
                     rewritten["session_id"] = mainSessionId
+                    if let newData = try? JSONSerialization.data(withJSONObject: rewritten) {
+                        return (newData, nil)
+                    }
+                }
+            default:
+                break
+            }
+            return (data, nil)
+        }
+
+        // OMP subagent events: the extension reports `transcript_path`; child
+        // transcripts nest under `<parent>.jsonl/<child>.jsonl` — fold them onto
+        // the parent card (Agent Sub-Sessions: merge / hide; separate = no-op).
+        if mayNeedOmp,
+           let transcriptPath = Self.nonEmptyString(raw["transcript_path"]),
+           OmpSessionFolding.isChildTranscriptPath(transcriptPath) {
+            switch mode {
+            case "hide":
+                return (data, Self.hiddenPluginResponse(for: raw))
+            case "merge":
+                if let parentNativeId = OmpSessionFolding.parentSessionId(childPath: transcriptPath),
+                   let childSessionId = Self.rawSessionId(from: raw) {
+                    var rewritten = raw
+                    rewritten["session_id"] = "omp-\(parentNativeId)"
+                    rewritten["agent_id"] = childSessionId
+                    rewritten["agent_type"] = Self.nonEmptyString(raw["agent_type"]) ?? "omp-subagent"
                     if let newData = try? JSONSerialization.data(withJSONObject: rewritten) {
                         return (newData, nil)
                     }

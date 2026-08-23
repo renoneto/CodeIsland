@@ -30,7 +30,7 @@ final class OmpExtensionContractTests: XCTestCase {
         XCTAssertTrue(source.contains("serialized = JSON.stringify(payload);"))
         XCTAssertTrue(source.contains("try {\n    serialized = JSON.stringify(payload);\n  } catch {"))
         XCTAssertTrue(source.contains("catch {\n    finish();\n    return promise;\n  }"))
-        XCTAssertTrue(source.contains("enqueueEvent(sid, base(sessionId, cwd, {"))
+        XCTAssertTrue(source.contains("enqueueEvent(sid, base(sessionId, ctx.cwd, {"))
         XCTAssertTrue(source.contains("enqueueEvent(`omp-${sessionId}`, base(sessionId, ctx.cwd, {"))
         XCTAssertFalse(source.contains("sendToSocket(base(sessionId, ctx.cwd"))
     }

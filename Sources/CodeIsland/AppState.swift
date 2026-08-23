@@ -3347,7 +3347,7 @@ final class AppState {
     }
 
     private func routeDiscoveredSubsessionIfNeeded(_ info: DiscoveredSession) -> Bool {
-        guard info.source == "codex",
+        guard info.source == "codex" || info.source == "omp",
               let parentSessionId = info.parentSessionId,
               !parentSessionId.isEmpty else {
             return false
@@ -3491,7 +3491,7 @@ final class AppState {
             }
 
             let sessionId = "omp-\(snapshot.sessionId)"
-            let discovered = DiscoveredSession(
+            var discovered = DiscoveredSession(
                 sessionId: sessionId,
                 cwd: snapshot.cwd,
                 tty: nil,
@@ -3503,6 +3503,14 @@ final class AppState {
                 sessionTitle: snapshot.title,
                 transcriptPath: path
             )
+            // Subagent transcripts nest under `<parent>.jsonl/<child>.jsonl`;
+            // mark them so routeDiscoveredSubsessionIfNeeded folds them into
+            // the parent card instead of showing duplicate project cards.
+            if let parentNativeId = OmpSessionFolding.parentSessionId(childPath: path, fileManager: fileManager) {
+                discovered.parentSessionId = parentNativeId
+                discovered.agentType = "omp-subagent"
+                discovered.agentNickname = url.deletingPathExtension().lastPathComponent
+            }
             if let existing = discoveredById[sessionId], existing.modifiedAt >= modifiedAt {
                 continue
             }
